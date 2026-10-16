@@ -573,7 +573,10 @@ let pendingBingo = checkBingo(S);   // награды за линии, собр�
 const bonus = () => bonusFrom(S.claimed);
 const breedCost = () => bonus().breedCost;
 
-function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* без сохранения игра работает */ } }
+function save() {
+  try { S.ts = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* без сохранения игра работает */ }
+  cloudSave();
+}
 const byId = id => S.mutants.find(m => m.id === id);
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -1050,6 +1053,36 @@ try {
 
 let LB = { status: 'idle', top: [], mine: null };
 
+/* ---------- ОБЛАЧНОЕ СОХРАНЕНИЕ (Telegram CloudStorage) ---------- */
+var CS = (TG && TG.CloudStorage && TG.isVersionAtLeast && TG.isVersionAtLeast('6.9')) ? TG.CloudStorage : null;
+var csSet = (k, v) => new Promise(res => CS.setItem(k, v, (e, ok) => res(!e)));
+var csGet = ks => new Promise(res => CS.getItems(ks, (e, v) => res(e ? null : v)));
+var cloudTimer;
+
+function cloudSave() {
+  if (!CS) return;
+  clearTimeout(cloudTimer);
+  cloudTimer = setTimeout(async () => {
+    const str = JSON.stringify(S), size = 3000, n = Math.ceil(str.length / size);
+    for (let i = 0; i < n; i++) await csSet('s' + i, str.slice(i * size, (i + 1) * size));
+    await csSet('n', String(n));
+  }, 1500);
+}
+
+async function cloudLoad() {
+  if (!CS) return;
+  const r = await csGet(['n']);
+  const n = +(r && r.n);
+  if (!n) return cloudSave();
+  const parts = await csGet(Array.from({ length: n }, (_, i) => 's' + i));
+  if (!parts) return;
+  let str = '';
+  for (let i = 0; i < n; i++) str += parts['s' + i] || '';
+  let c; try { c = JSON.parse(str); } catch (e) { return; }
+  if ((c.ts || 0) > (S.ts || 0)) { localStorage.setItem(KEY, str); location.reload(); }
+  else if ((c.ts || 0) < (S.ts || 0)) cloudSave();
+}
+
 async function submitScore() {
   if (!TG_DATA) return;   // вне Telegram рекорд отправить нельзя
   try {
@@ -1094,6 +1127,7 @@ function viewTop() {
   </section>`;
 }
 
+cloudLoad();
 render();
 submitScore();
 if (pendingBingo.length) {
