@@ -33,6 +33,16 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--coin);outl
 .logo small{display:block;font-family:var(--font-mono);font-weight:500;font-size:10px;letter-spacing:.04em;color:var(--muted);text-transform:none;margin-top:2px}
 .chips{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .chip{display:inline-flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-family:var(--font-mono);font-weight:700;font-size:13px;font-variant-numeric:tabular-nums}
+.dq-btn{position:relative;width:34px;height:34px;display:grid;place-items:center;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:0;color:var(--fg)}
+.dq-btn:hover{border-color:var(--muted)}
+.dq-dot{position:absolute;top:-5px;right:-5px;width:12px;height:12px;border-radius:50%;background:var(--bad);border:2px solid var(--bg);box-sizing:content-box}
+.in-battle .dq-btn{display:none}
+.dqs{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
+.dqs li{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.dqs .dq-main{flex:1;min-width:0}
+.dqs .dq-main b{font-size:14px}
+.dqs .xp{margin:6px 0 0}
+.dq-got{color:var(--good);font-size:12px;font-weight:700;white-space:nowrap}
 .chip i{width:9px;height:9px;border-radius:50%;background:var(--coin)}
 .chip.stage i{background:var(--fang);border-radius:2px;transform:rotate(45deg)}
 
@@ -226,9 +236,19 @@ const SPECIES = {
 const speciesName = (g1, g2) => SPECIES[g1][g2];
 const speciesKey = (g1, g2) => g1 + '-' + g2;
 
-const MAX_LVL = 12, BREED_COST = 30, SAMPLE_COST = 40, HYBRID_COST = 90, RELEASE_REFUND = 8, COLLECTION_CAP = 12;
+const BREED_COST = 30, SAMPLE_COST = 40, HYBRID_COST = 90, RELEASE_REFUND = 8, COLLECTION_CAP = 12;
 const xpNeed = l => 18 + 8 * l;
-const upgradeCost = l => 20 + 12 * l;   // цена повышения с уровня l на l+1
+const upgradeCost = l => 20 + 12 * l;
+
+/* ---------- ЕЖЕДНЕВНЫЕ ЗАДАНИЯ ---------- */
+const DQ_POOL = [
+  { t: 'win',     n: 3, base: 60 },
+  { t: 'fight',   n: 5, base: 50 },
+  { t: 'breed',   n: 2, base: 40 },
+  { t: 'upgrade', n: 2, base: 50 }
+];
+const DQ_NAME = { login: 'Вход в игру', win: 'Выиграй бои на арене', fight: 'Проведи бои', breed: 'Скрести мутантов', upgrade: 'Прокачай мутантов за монеты' };
+const todayKey = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };   // цена повышения с уровня l на l+1
 
 function calcStats(m, boost = 1, bonus = null) {
   const a = GENES[m.g[0]], b = GENES[m.g[1]];
@@ -259,12 +279,11 @@ function breedGenes(a, b) {
 function addXp(m, x) {
   const ups = [];
   m.xp += x;
-  while (m.lvl < MAX_LVL && m.xp >= xpNeed(m.lvl)) {
+  while (m.xp >= xpNeed(m.lvl)) {
     m.xp -= xpNeed(m.lvl);
     m.lvl++;
     ups.push(m.lvl);
   }
-  if (m.lvl >= MAX_LVL) m.xp = 0;
   return ups;
 }
 
@@ -277,7 +296,7 @@ function genFoeSpec(stage) {
   const boss = stage % 5 === 0;
   const units = [0, 1, 2].map(i => ({
     g: [rndGene(), rndGene()],
-    lvl: Math.max(1, Math.min(MAX_LVL + 4, lvl + (boss && i === 1 ? 1 : 0) - (Math.random() < 0.3 ? 1 : 0))),
+    lvl: Math.max(1, lvl + (boss && i === 1 ? 1 : 0) - (Math.random() < 0.3 ? 1 : 0)),
     gen
   }));
   return { stage, boss, units };
@@ -578,6 +597,24 @@ function save() {
   try { S.ts = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* без сохранения игра работает */ }
   cloudSave();
 }
+function ensureDaily() {
+  const day = todayKey();
+  if (S.daily && S.daily.day === day) return;
+  const k = 1 + 0.05 * (S.stage - 1);
+  const pick = DQ_POOL.slice().sort(() => Math.random() - 0.5).slice(0, 3);
+  S.daily = { day, quests: [
+    { id: 'login', n: 1, p: 1, r: Math.round(40 * k), c: 0 },
+    ...pick.map(q => ({ id: q.t, n: q.n, p: 0, r: Math.round(q.base * k), c: 0 }))
+  ] };
+  // пишем в localStorage без обновления метки времени: новый пустой профиль не должен «перебить» облако
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
+}
+function dq(t, n = 1) {
+  ensureDaily();
+  const q = S.daily.quests.find(x => x.id === t);
+  if (q) q.p = Math.min(q.n, q.p + n);
+}
+const dqReady = () => { ensureDaily(); return S.daily.quests.filter(q => q.p >= q.n && !q.c).length; };
 const byId = id => S.mutants.find(m => m.id === id);
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -612,7 +649,8 @@ function foeCard(u, boss) {
 
 function renderTop() {
   $('#top').innerHTML = `<div class="logo">Геномная арена<small>скрещивай · качай · побеждай</small></div>
-    <div class="chips"><span class="chip stage" title="Стадия арены"><i></i>${S.stage}</span><span class="chip" title="Монеты"><i></i>${S.coins}</span></div>`;
+    <div class="chips"><span class="chip stage" title="Стадия арены"><i></i>${S.stage}</span><span class="chip" title="Монеты"><i></i>${S.coins}</span>
+      <button class="dq-btn" data-act="daily" aria-label="Ежедневные задания" title="Ежедневные задания"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M8.5 15l2.5 2.5 4.5-5"/></svg>${dqReady() ? '<i class="dq-dot"></i>' : ''}</button></div>`;
 }
 
 /* ---------- ЭКРАНЫ ---------- */
@@ -762,7 +800,6 @@ function openModal(html) {
 function closeModal() { $('#modal').hidden = true; $('#modal').innerHTML = ''; confirmId = null; }
 
 function upgradeHTML(m, st) {
-  if (m.lvl >= MAX_LVL) return '<div style="margin-bottom:8px"><button class="btn wide" disabled>Максимальный уровень</button></div>';
   const nx = calcStats({ g: m.g, lvl: m.lvl + 1, gen: m.gen }, 1, bonus());
   const cost = upgradeCost(m.lvl);
   return `<div style="margin-bottom:8px">
@@ -771,16 +808,39 @@ function upgradeHTML(m, st) {
   </div>`;
 }
 
+function dailyHTML() {
+  ensureDaily();
+  const qs = S.daily.quests;
+  const ready = qs.filter(q => q.p >= q.n && !q.c);
+  const left = new Date(new Date().setHours(24, 0, 0, 0)) - Date.now();
+  const h = Math.floor(left / 3600000), mn = Math.floor(left % 3600000 / 60000);
+  const rows = qs.map(q => {
+    const done = q.p >= q.n;
+    const meta = q.id === 'login' ? 'Бесплатная награда за вход' : `${Math.min(q.p, q.n)} / ${q.n}`;
+    const right = q.c ? '<span class="dq-got">Получено</span>'
+      : `<button class="btn primary" data-act="dq-claim" data-id="${q.id}" ${done ? '' : 'disabled'}>+<span class="price">${q.r}</span></button>`;
+    return `<li><div class="dq-main"><b>${DQ_NAME[q.id]}</b><div class="meta">${meta}${q.id === 'login' || q.c ? '' : ' · награда ' + q.r}</div>
+      ${q.id === 'login' ? '' : `<div class="xp"><i style="width:${Math.round(Math.min(q.p, q.n) / q.n * 100)}%"></i></div>`}</div>${right}</li>`;
+  }).join('');
+  return `<h3>Ежедневные задания</h3>
+    <p class="sub center">Новые задания через ${h} ч ${mn} мин.</p>
+    <ul class="dqs">${rows}</ul>
+    <div class="row" style="margin-top:12px">
+      ${ready.length > 1 ? `<button class="btn primary grow" data-act="dq-claim-all">Забрать всё · ${ready.reduce((a, q) => a + q.r, 0)}</button>` : ''}
+      <button class="btn grow" data-act="close">Закрыть</button>
+    </div>`;
+}
+
 function detailHTML(m) {
   const st = calcStats(m, 1, bonus()), g = GENES[m.g[0]];
   const inTeam = S.team.includes(m.id);
   const need = xpNeed(m.lvl);
-  const pct = m.lvl >= MAX_LVL ? 100 : Math.round(m.xp / need * 100);
+  const pct = Math.round(m.xp / need * 100);
   return `${art(m.g[0], m.g[1])}
     <h3>${speciesName(m.g[0], m.g[1])}</h3>
     <div class="center">${geneChip(m.g[0])} &nbsp; ${geneChip(m.g[1])}</div>
     <div class="stats"><div><b>${st.hp}</b><span>здоровье</span></div><div><b>${Math.round(st.atk)}</b><span>атака</span></div><div><b>${st.spd}</b><span>скорость</span></div></div>
-    <div class="meta">Уровень ${m.lvl}${m.lvl >= MAX_LVL ? ' (макс.)' : ` · опыт ${m.xp}/${need}`} · поколение ${m.gen}</div>
+    <div class="meta">Уровень ${m.lvl} · опыт ${m.xp}/${need} · поколение ${m.gen}</div>
     <div class="xp"><i style="width:${pct}%"></i></div>
     <p class="sub"><b style="color:var(--fg)">${g.sp}.</b> ${g.spDesc}. Перезарядка 3 хода.</p>
     ${upgradeHTML(m, st)}
@@ -918,6 +978,7 @@ function finishBattle() {
     const ups = addXp(m, gain);
     lines.push(`<li>${speciesName(m.g[0], m.g[1])}: <b>+${gain}</b> опыта${ups.length ? ` · уровень <b>${m.lvl}</b>` : ''}</li>`);
   });
+  dq('fight'); if (won) dq('win');
   if (won) {
     S.wins++; S.stage++; S.best = Math.max(S.best, S.stage);
     S.foe = genFoeSpec(S.stage);
@@ -978,13 +1039,24 @@ function act_(a, d) {
       else S.team[2] = id;
       save(); openModal(detailHTML(byId(id))); render(); break;
     }
+    case 'daily': if (Bt) break; openModal(dailyHTML()); break;
+    case 'dq-claim': {
+      ensureDaily();
+      const q = S.daily.quests.find(x => x.id === d.id);
+      if (!q || q.c || q.p < q.n) break;
+      q.c = 1; S.coins += q.r; save(); render(); openModal(dailyHTML()); break;
+    }
+    case 'dq-claim-all': {
+      ensureDaily();
+      S.daily.quests.forEach(q => { if (!q.c && q.p >= q.n) { q.c = 1; S.coins += q.r; } });
+      save(); render(); openModal(dailyHTML()); break;
+    }
     case 'upgrade': {
       const m = byId(id);
-      if (!m || m.lvl >= MAX_LVL) break;
+      if (!m) break;
       const cost = upgradeCost(m.lvl);
       if (S.coins < cost) break;
-      S.coins -= cost; m.lvl++;
-      if (m.lvl >= MAX_LVL) m.xp = 0;
+      S.coins -= cost; m.lvl++; dq('upgrade');
       save(); openModal(detailHTML(m)); render(); break;
     }
     case 'release': {
@@ -1004,7 +1076,7 @@ function act_(a, d) {
     case 'breed': {
       if (picks.length !== 2 || S.coins < breedCost() || S.mutants.length >= COLLECTION_CAP) break;
       const r = breedGenes(byId(picks[0]), byId(picks[1]));
-      S.coins -= breedCost();
+      S.coins -= breedCost(); dq('breed');
       const n = newMutant(r.g, r.gen);
       picks = []; save(); render(); showNewborn(n.m, n.fresh, r.mutated, n.bingo); break;
     }
@@ -1090,18 +1162,22 @@ function cloudSave() {
   }, 1500);
 }
 
+const hasProgress = o => !!(o.ts || o.wins || o.losses || o.stage > 1 || (o.mutants && o.mutants.length !== 3));
+function stamp() { if (!S.ts) { S.ts = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} } }
+
 async function cloudLoad() {
   if (!CS) return;
   const r = await csGet(['n']);
   const n = +(r && r.n);
-  if (!n) return cloudSave();
+  if (!n) { if (hasProgress(S)) { stamp(); cloudSave(); } return; }   // облако пустое: грузим только настоящий прогресс
   const parts = await csGet(Array.from({ length: n }, (_, i) => 's' + i));
   if (!parts) return;
   let str = '';
   for (let i = 0; i < n; i++) str += parts['s' + i] || '';
   let c; try { c = JSON.parse(str); } catch (e) { return; }
-  if ((c.ts || 0) > (S.ts || 0)) { localStorage.setItem(KEY, str); location.reload(); }
-  else if ((c.ts || 0) < (S.ts || 0)) cloudSave();
+  const ct = c.ts || 0, lt = S.ts || 0;
+  if (ct > lt || (!hasProgress(S) && hasProgress(c))) { localStorage.setItem(KEY, str); location.reload(); }  // в облаке новее
+  else if (hasProgress(S) && (lt > ct || (!lt && !ct))) { stamp(); cloudSave(); }                           // локально новее
 }
 
 async function submitScore() {
