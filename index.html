@@ -228,6 +228,7 @@ const speciesKey = (g1, g2) => g1 + '-' + g2;
 
 const MAX_LVL = 12, BREED_COST = 30, SAMPLE_COST = 40, HYBRID_COST = 90, RELEASE_REFUND = 8, COLLECTION_CAP = 12;
 const xpNeed = l => 18 + 8 * l;
+const upgradeCost = l => 20 + 12 * l;   // цена повышения с уровня l на l+1
 
 function calcStats(m, boost = 1, bonus = null) {
   const a = GENES[m.g[0]], b = GENES[m.g[1]];
@@ -271,17 +272,17 @@ function addXp(m, x) {
 const rndGene = () => GENE_IDS[Math.floor(Math.random() * GENE_IDS.length)];
 
 function genFoeSpec(stage) {
-  const lvl = 1 + Math.floor((stage - 1) * 0.5);
+  const lvl = 1 + Math.floor((stage - 1) * 0.7);
   const gen = Math.min(4, Math.floor(stage / 6));
   const boss = stage % 5 === 0;
   const units = [0, 1, 2].map(i => ({
     g: [rndGene(), rndGene()],
-    lvl: Math.max(1, Math.min(MAX_LVL + 2, lvl + (boss && i === 1 ? 1 : 0) - (Math.random() < 0.3 ? 1 : 0))),
+    lvl: Math.max(1, Math.min(MAX_LVL + 4, lvl + (boss && i === 1 ? 1 : 0) - (Math.random() < 0.3 ? 1 : 0))),
     gen
   }));
   return { stage, boss, units };
 }
-const foeBoost = spec => (spec.boss ? 1.25 : 1) * (spec.stage < 3 ? 0.85 : 1);
+const foeBoost = spec => (spec.boss ? 1.25 : 1) * (spec.stage < 3 ? 0.85 : 1) * (1 + 0.03 * Math.max(0, spec.stage - 18));
 
 /* ---------- Бой ---------- */
 function makeUnit(m, side, idx, boost = 1, tag = '', bonus = null) {
@@ -760,6 +761,16 @@ function openModal(html) {
 }
 function closeModal() { $('#modal').hidden = true; $('#modal').innerHTML = ''; confirmId = null; }
 
+function upgradeHTML(m, st) {
+  if (m.lvl >= MAX_LVL) return '<div style="margin-bottom:8px"><button class="btn wide" disabled>Максимальный уровень</button></div>';
+  const nx = calcStats({ g: m.g, lvl: m.lvl + 1, gen: m.gen }, 1, bonus());
+  const cost = upgradeCost(m.lvl);
+  return `<div style="margin-bottom:8px">
+    <button class="btn buy wide" data-act="upgrade" data-id="${m.id}" ${S.coins >= cost ? '' : 'disabled'}>Прокачать до ур.${m.lvl + 1} · <span class="price">${cost}</span></button>
+    <p class="sub center" style="margin:4px 0 0">здоровье ${st.hp} → <b style="color:var(--fg)">${nx.hp}</b> · атака ${Math.round(st.atk)} → <b style="color:var(--fg)">${Math.round(nx.atk)}</b> · у тебя ${S.coins}</p>
+  </div>`;
+}
+
 function detailHTML(m) {
   const st = calcStats(m, 1, bonus()), g = GENES[m.g[0]];
   const inTeam = S.team.includes(m.id);
@@ -772,6 +783,7 @@ function detailHTML(m) {
     <div class="meta">Уровень ${m.lvl}${m.lvl >= MAX_LVL ? ' (макс.)' : ` · опыт ${m.xp}/${need}`} · поколение ${m.gen}</div>
     <div class="xp"><i style="width:${pct}%"></i></div>
     <p class="sub"><b style="color:var(--fg)">${g.sp}.</b> ${g.spDesc}. Перезарядка 3 хода.</p>
+    ${upgradeHTML(m, st)}
     <div class="row">
       <button class="btn grow ${inTeam ? '' : 'primary'}" data-act="team" data-id="${m.id}">${inTeam ? 'Убрать из команды' : 'В команду'}</button>
       <button class="btn ${confirmId === m.id ? 'danger' : ''}" data-act="release" data-id="${m.id}">${confirmId === m.id ? `Отпустить за +${RELEASE_REFUND}?` : 'Отпустить'}</button>
@@ -965,6 +977,15 @@ function act_(a, d) {
       else if (S.team.length < 3) S.team.push(id);
       else S.team[2] = id;
       save(); openModal(detailHTML(byId(id))); render(); break;
+    }
+    case 'upgrade': {
+      const m = byId(id);
+      if (!m || m.lvl >= MAX_LVL) break;
+      const cost = upgradeCost(m.lvl);
+      if (S.coins < cost) break;
+      S.coins -= cost; m.lvl++;
+      if (m.lvl >= MAX_LVL) m.xp = 0;
+      save(); openModal(detailHTML(m)); render(); break;
     }
     case 'release': {
       if (S.mutants.length <= 1) break;
