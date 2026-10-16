@@ -170,6 +170,17 @@ body.in-battle .tabs{display:none}
 .shop.lock .art svg{filter:brightness(0) opacity(.35)}
 .shop .meta{display:flex;flex-wrap:wrap;gap:2px 8px;justify-content:center;margin-top:2px}
 
+.tab{font-size:8.5px;letter-spacing:.02em;padding:10px 1px}
+@media (max-width:359px){.tab{font-size:7.5px;letter-spacing:0}}
+/* рейтинг */
+.lb{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
+.lb li{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+.lb .pos{flex:none;width:28px;font-family:var(--font-mono);font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
+.lb li:nth-child(1) .pos{color:var(--coin)}
+.lb li:nth-child(2) .pos{color:#c9d3dc}
+.lb li:nth-child(3) .pos{color:#d98e55}
+.lb .who{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lb .sc{flex:none;font-family:var(--font-mono);font-weight:700;font-size:13px;color:var(--coin);font-variant-numeric:tabular-nums}
 @keyframes bob{0%,100%{transform:translateY(0) scale(1,1)}50%{transform:translateY(-3px) scale(1.02,.98)}}
 @keyframes shake{0%{transform:translateX(0)}25%{transform:translateX(-6px)}50%{transform:translateX(6px)}75%{transform:translateX(-3px)}100%{transform:translateX(0)}}
 @keyframes rise{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,-38px)}}
@@ -188,8 +199,10 @@ body.in-battle .tabs{display:none}
   <button class="tab" data-act="tab" data-tab="lab">Селекция</button>
   <button class="tab" data-act="tab" data-tab="mutants">Мутанты</button>
   <button class="tab" data-act="tab" data-tab="bingo">Бинго</button>
+  <button class="tab" data-act="tab" data-tab="top">Рейтинг</button>
 </div></nav>
 <div class="overlay" id="modal" hidden></div>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script>
 /* ---------- ENGINE: чистая логика без DOM ---------- */
 const GENE_IDS = ['fang', 'steel', 'spore', 'ether', 'bone'];
@@ -732,7 +745,7 @@ function render() {
   document.body.classList.toggle('in-battle', !!Bt);
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('on', t.dataset.tab === tab));
   if (Bt) return;
-  $('#view').innerHTML = tab === 'arena' ? viewArena() : tab === 'lab' ? viewLab() : tab === 'bingo' ? viewBingo() : viewMutants();
+  $('#view').innerHTML = tab === 'arena' ? viewArena() : tab === 'lab' ? viewLab() : tab === 'bingo' ? viewBingo() : tab === 'top' ? viewTop() : viewMutants();
 }
 
 /* ---------- ОКНА ---------- */
@@ -895,6 +908,7 @@ function finishBattle() {
     S.foe = genFoeSpec(S.stage);
   } else S.losses++;
   save();
+  if (won) submitScore();
   openModal(`<div class="center"><span class="new">${won ? 'Победа' : 'Поражение'}</span></div>
     <h3>${won ? 'Арена пройдена' : 'Команду разбили'}</h3>
     <p class="sub center">${won ? `Открыта стадия ${S.stage}.` : 'Враги остались прежними. Прокачай команду или скрести новых мутантов и попробуй ещё раз.'}</p>
@@ -936,7 +950,8 @@ function showNewborn(m, fresh, mutated, bingo = []) {
 function act_(a, d) {
   const id = d.id ? (isNaN(+d.id) ? d.id : +d.id) : null;
   switch (a) {
-    case 'tab': tab = d.tab; picks = []; render(); window.scrollTo(0, 0); break;
+    case 'tab': tab = d.tab; picks = []; if (tab === 'top') LB.status = 'loading'; render(); window.scrollTo(0, 0); if (tab === 'top') loadTop(); break;
+    case 'refresh-top': LB.status = 'loading'; render(); loadTop(); break;
     case 'goto-mutants': tab = 'mutants'; render(); break;
     case 'fight': startBattle(); break;
     case 'open': { const m = byId(id); if (m) openModal(detailHTML(m)); break; }
@@ -1021,7 +1036,66 @@ document.addEventListener('keydown', e => {
 });
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && !(Bt && Bt.over)) { closeModal(); render(); } });
 
+/* ---------- TELEGRAM И РЕЙТИНГ ---------- */
+const API = 'https://arena-api.dan8lggflowersyt.workers.dev';
+const TG = window.Telegram && window.Telegram.WebApp;
+const TG_DATA = TG && TG.initData ? TG.initData : '';
+try {
+  if (TG) {
+    TG.ready(); TG.expand();
+    if (TG.disableVerticalSwipes) TG.disableVerticalSwipes();
+    TG.setHeaderColor('#0f1720'); TG.setBackgroundColor('#0f1720');
+  }
+} catch (e) { /* старый клиент Telegram: игра работает и так */ }
+
+let LB = { status: 'idle', top: [], mine: null };
+
+async function submitScore() {
+  if (!TG_DATA) return;   // вне Telegram рекорд отправить нельзя
+  try {
+    const r = await fetch(API + '/score', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ initData: TG_DATA, best: Math.max(S.best || 1, S.stage) })
+    });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d && d.ok) { LB.mine = { best: d.best, rank: d.rank }; if (tab === 'top' && !Bt) render(); }
+  } catch (e) { /* нет связи: рекорд уйдёт при следующей победе */ }
+}
+
+async function loadTop() {
+  try {
+    const r = await fetch(API + '/top');
+    if (!r.ok) throw new Error('bad status');
+    const d = await r.json();
+    LB.top = Array.isArray(d.top) ? d.top : [];
+    LB.status = 'ok';
+  } catch (e) { LB.status = 'error'; }
+  if (tab === 'top' && !Bt) render();
+}
+
+function viewTop() {
+  const mine = LB.mine
+    ? `<p class="sub">Твой рекорд: стадия <b style="color:var(--fg)">${LB.mine.best}</b> · место <b style="color:var(--fg)">${LB.mine.rank}</b></p>` : '';
+  const note = TG_DATA ? '' : `<p class="sub">Чтобы попасть в рейтинг, открой игру через Telegram.</p>`;
+  let body;
+  if (LB.status === 'loading' && !LB.top.length) body = '<p class="sub center" style="margin-top:14px">Загрузка…</p>';
+  else if (LB.status === 'error' && !LB.top.length) body = '<p class="sub center" style="margin-top:14px">Не удалось загрузить рейтинг. Проверь связь и нажми «Обновить».</p>';
+  else if (!LB.top.length) body = '<p class="sub center" style="margin-top:14px">Пока никого нет. Стань первым!</p>';
+  else body = `<ol class="lb">${LB.top.map((r, i) =>
+    `<li><span class="pos">${i + 1}</span><span class="who">${esc(r.name)}</span><span class="sc">стадия ${esc(r.best)}</span></li>`).join('')}</ol>`;
+  return `
+  <section class="panel">
+    <h2 class="h">Рейтинг арены</h2>
+    <p class="sub">Топ-20 по самой высокой достигнутой стадии.</p>
+    ${mine}${note}${body}
+    <div style="margin-top:12px"><button class="btn wide" data-act="refresh-top">Обновить</button></div>
+  </section>`;
+}
+
 render();
+submitScore();
 if (pendingBingo.length) {
   save();
   openModal(`<div class="center"><span class="new">Бинго!</span></div>
