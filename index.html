@@ -37,6 +37,13 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--coin);outl
 .dq-btn:hover{border-color:var(--muted)}
 .dq-dot{position:absolute;top:-5px;right:-5px;width:12px;height:12px;border-radius:50%;background:var(--bad);border:2px solid var(--bg);box-sizing:content-box}
 .in-battle .dq-btn{display:none}
+.strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px;margin-top:6px}
+.sd{background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:5px 0;text-align:center;line-height:1.2}
+.sd small{display:block;font-size:10px;color:var(--muted)}
+.sd b{font-family:var(--font-mono);font-size:12px}
+.sd.got{opacity:.5}
+.sd.got b::after{content:" ✓";color:var(--good)}
+.sd.now{border-color:var(--coin);box-shadow:0 0 0 1px var(--coin);opacity:1}
 .dqs{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:8px}
 .dqs li{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
 .dqs .dq-main{flex:1;min-width:0}
@@ -236,6 +243,8 @@ const SPECIES = {
 const speciesName = (g1, g2) => SPECIES[g1][g2];
 const speciesKey = (g1, g2) => g1 + '-' + g2;
 
+const LAB_BASE = 0.2, LAB_PER_LVL = 0.04, LAB_CAP_H = 8, ARCHIVE_CAP = 50;   // монет в час = 0.2 + 0.04 × уровень (на каждого мутанта)
+const STREAK_BASE = [30, 35, 40, 50, 60, 75, 120];                          // награды серии входов, 7-дневный цикл
 const BREED_COST = 30, SAMPLE_COST = 40, HYBRID_COST = 90, RELEASE_REFUND = 8, COLLECTION_CAP = 12;
 const xpNeed = l => 18 + 8 * l;
 const upgradeCost = l => 20 + 12 * l;
@@ -584,8 +593,8 @@ function defaults() {
 let S;
 try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
 if (!S || !Array.isArray(S.mutants) || !S.mutants.length) S = defaults();
-S.team = (S.team || []).filter(id => S.mutants.some(m => m.id === id)).slice(0, 3);
-if (!S.team.length) S.team = S.mutants.slice(0, 3).map(m => m.id);
+S.team = (S.team || []).filter(id => S.mutants.some(m => m.id === id && !m.arc)).slice(0, 3);
+if (!S.team.length) S.team = S.mutants.filter(m => !m.arc).slice(0, 3).map(m => m.id);
 if (!S.foe || S.foe.stage !== S.stage) S.foe = genFoeSpec(S.stage);
 S.seen = S.seen || {};
 S.mutants.forEach(m => { S.seen[speciesKey(m.g[0], m.g[1])] = 1; });
@@ -597,13 +606,18 @@ function save() {
   try { S.ts = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* без сохранения игра работает */ }
   cloudSave();
 }
+const dqK = () => 1 + 0.05 * (S.stage - 1);
+const yesterdayKey = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 function ensureDaily() {
   const day = todayKey();
-  if (S.daily && S.daily.day === day) return;
-  const k = 1 + 0.05 * (S.stage - 1);
+  if (S.daily && S.daily.day === day) { if (!S.streak) S.streak = { n: 1, last: day }; return; }
+  const prev = S.streak;
+  S.streak = { n: prev && prev.last === yesterdayKey() ? prev.n + 1 : 1, last: day };   // пропустил день: серия с начала
+  const si = (S.streak.n - 1) % 7;
+  const k = dqK();
   const pick = DQ_POOL.slice().sort(() => Math.random() - 0.5).slice(0, 3);
   S.daily = { day, quests: [
-    { id: 'login', n: 1, p: 1, r: Math.round(40 * k), c: 0 },
+    { id: 'login', n: 1, p: 1, r: Math.round(STREAK_BASE[si] * k), c: 0, d: si + 1 },
     ...pick.map(q => ({ id: q.t, n: q.n, p: 0, r: Math.round(q.base * k), c: 0 }))
   ] };
   // пишем в localStorage без обновления метки времени: новый пустой профиль не должен «перебить» облако
@@ -614,13 +628,26 @@ function dq(t, n = 1) {
   const q = S.daily.quests.find(x => x.id === t);
   if (q) q.p = Math.min(q.n, q.p + n);
 }
+function ensureLab() {
+  if (!S.lab) { S.lab = { t: Date.now(), f: 0 }; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  if (S.lab.t > Date.now()) S.lab.t = Date.now();          // часы переведены назад: не наказываем
+}
+const labRate = () => active().reduce((a, m) => a + LAB_BASE + LAB_PER_LVL * m.lvl, 0);
+function labPending() {
+  ensureLab();
+  const el = Math.min(Date.now() - S.lab.t, LAB_CAP_H * 3600000);
+  return S.lab.f + labRate() * el / 3600000;
+}
 const dqReady = () => { ensureDaily(); return S.daily.quests.filter(q => q.p >= q.n && !q.c).length; };
 const byId = id => S.mutants.find(m => m.id === id);
+const active = () => S.mutants.filter(m => !m.arc);
+const activeCount = () => S.mutants.filter(m => !m.arc).length;
 const $ = sel => document.querySelector(sel);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 let tab = 'arena';
 let picks = [];          // выбранные родители
+let showArc = false;
 let confirmId = null;    // подтверждение «отпустить»
 let Bt = null;           // текущий бой
 
@@ -654,6 +681,28 @@ function renderTop() {
 }
 
 /* ---------- ЭКРАНЫ ---------- */
+function labHTML() {
+  const rate = labRate(), max = Math.max(1, Math.floor(rate * LAB_CAP_H));
+  const cur = Math.min(Math.floor(labPending()), max);
+  return `<section class="panel">
+    <h2 class="h">Лаборатория</h2>
+    <p class="sub">Мутанты работают, пока тебя нет, и копят монеты до ${LAB_CAP_H} часов. Чем выше уровень, тем больше доход. Архивные не работают.</p>
+    <div class="row">
+      <div class="grow"><div class="meta"><b id="labAmt" style="color:var(--fg)">${cur}</b> / ${max} · +${rate.toFixed(1).replace('.', ',')} в час</div>
+        <div class="xp" style="margin-bottom:0"><i id="labBar" style="width:${Math.round(cur / max * 100)}%"></i></div></div>
+      <button class="btn primary" id="labClaim" data-act="lab-claim" ${cur < 1 ? 'disabled' : ''}>Забрать</button>
+    </div>
+  </section>`;
+}
+function updateLab() {
+  const a = $('#labAmt'); if (!a || !a.isConnected) return;
+  const rate = labRate(), max = Math.max(1, Math.floor(rate * LAB_CAP_H));
+  const cur = Math.min(Math.floor(labPending()), max);
+  a.textContent = cur;
+  $('#labBar').style.width = Math.round(cur / max * 100) + '%';
+  const b = $('#labClaim'); if (b) { if (cur < 1) b.setAttribute('disabled', ''); else b.removeAttribute('disabled'); }
+}
+
 function viewArena() {
   const team = S.team.map(byId);
   const slots = [0, 1, 2].map(i => team[i] ? miniCard(team[i], { act: 'goto-mutants' }) : `<div class="mc empty">пусто</div>`).join('');
@@ -670,6 +719,7 @@ function viewArena() {
     <div class="grid3">${slots}</div>
     <div style="margin-top:12px"><button class="btn primary wide" data-act="fight">В бой</button></div>
   </section>
+  ${labHTML()}
   <section class="panel">
     <h2 class="h">Кто кого пробивает</h2>
     <div class="cycle">${geneChip('fang')}<b>→</b>${geneChip('spore')}<b>→</b>${geneChip('ether')}<b>→</b>${geneChip('steel')}<b>→</b>${geneChip('bone')}<b>→</b>${geneChip('fang')}</div>
@@ -681,12 +731,12 @@ function viewArena() {
 function viewLab() {
   const a = byId(picks[0]), b = byId(picks[1]);
   const slot = m => m ? miniCard(m, { act: 'pick' }) : `<div class="mc empty">выбери<br>родителя</div>`;
-  const full = S.mutants.length >= COLLECTION_CAP;
+  const full = activeCount() >= COLLECTION_CAP;
   const can = a && b && S.coins >= breedCost() && !full;
   let note = `Потомок берёт по одному гену от каждого родителя. Шанс мутации 8%. Каждое новое поколение даёт +8% к силе (до 5-го).`;
-  if (full) note = `Мест нет: в коллекции ${COLLECTION_CAP} мутантов. Отпусти кого-нибудь на вкладке «Мутанты».`;
+  if (full) note = `Мест нет: в коллекции ${COLLECTION_CAP} мутантов. Отпусти кого-нибудь или убери в архив на вкладке «Мутанты».`;
   else if (a && b) note = `Гены для выбора: ${[...new Set([...a.g, ...b.g])].map(geneChip).join(' ')}`;
-  const grid = S.mutants.map(m => miniCard(m, { act: 'pick', sel: picks.includes(m.id) })).join('');
+  const grid = active().map(m => miniCard(m, { act: 'pick', sel: picks.includes(m.id) })).join('');
   return `
   <section class="panel">
     <h2 class="h">Скрещивание</h2>
@@ -730,12 +780,19 @@ function shopHTML(full) {
 }
 
 function viewMutants() {
-  const grid = S.mutants.map(m => miniCard(m, { badge: S.team.includes(m.id) ? 'в бою' : '' })).join('');
+  const grid = active().map(m => miniCard(m, { badge: S.team.includes(m.id) ? 'в бою' : '' })).join('');
+  const arc = S.mutants.filter(m => m.arc);
+  const arcGrid = arc.map(m => miniCard(m, {})).join('');
   return `
   <section class="panel">
-    <h2 class="h">Коллекция · ${S.mutants.length}/${COLLECTION_CAP}</h2>
+    <h2 class="h">Коллекция · ${activeCount()}/${COLLECTION_CAP}</h2>
     <p class="sub">Нажми на мутанта, чтобы увидеть силы и поставить в команду. Первый ген задаёт спецприём.</p>
     <div class="gridm">${grid}</div>
+  </section>
+  <section class="panel">
+    <button class="btn wide" data-act="arc-toggle">Архив · ${arc.length}/${ARCHIVE_CAP} ${showArc ? '▴' : '▾'}</button>
+    ${showArc ? `<p class="sub" style="margin:10px 0">Здесь лежат мутанты, которые не нужны сейчас. Они не занимают места в коллекции, но и не работают в лаборатории.</p>
+      ${arcGrid ? `<div class="gridm">${arcGrid}</div>` : '<p class="sub center" style="margin:0">Пока пусто. Убрать мутанта в архив можно в его карточке.</p>'}` : ''}
   </section>
   <section class="panel">
     <button class="btn danger wide" data-act="reset">${confirmId === 'reset' ? 'Точно стереть всё?' : 'Начать игру заново'}</button>
@@ -816,14 +873,21 @@ function dailyHTML() {
   const h = Math.floor(left / 3600000), mn = Math.floor(left % 3600000 / 60000);
   const rows = qs.map(q => {
     const done = q.p >= q.n;
-    const meta = q.id === 'login' ? 'Бесплатная награда за вход' : `${Math.min(q.p, q.n)} / ${q.n}`;
+    const meta = q.id === 'login' ? `День ${q.d || 1} серии · бесплатно` : `${Math.min(q.p, q.n)} / ${q.n}`;
     const right = q.c ? '<span class="dq-got">Получено</span>'
       : `<button class="btn primary" data-act="dq-claim" data-id="${q.id}" ${done ? '' : 'disabled'}>+<span class="price">${q.r}</span></button>`;
     return `<li><div class="dq-main"><b>${DQ_NAME[q.id]}</b><div class="meta">${meta}${q.id === 'login' || q.c ? '' : ' · награда ' + q.r}</div>
       ${q.id === 'login' ? '' : `<div class="xp"><i style="width:${Math.round(Math.min(q.p, q.n) / q.n * 100)}%"></i></div>`}</div>${right}</li>`;
   }).join('');
+  const lq = qs.find(q => q.id === 'login');
+  const idx = (S.streak.n - 1) % 7, kk = dqK();
+  const strip = STREAK_BASE.map((b, i) => {
+    const got = i < idx || (i === idx && lq && lq.c);
+    return `<div class="sd${got ? ' got' : ''}${i === idx ? ' now' : ''}"><small>${i + 1}</small><b>${Math.round(b * kk)}</b></div>`;
+  }).join('');
   return `<h3>Ежедневные задания</h3>
-    <p class="sub center">Новые задания через ${h} ч ${mn} мин.</p>
+    <p class="sub center">Серия входов: <b style="color:var(--fg)">${S.streak.n}</b> · новые задания через ${h} ч ${mn} мин.</p>
+    <div class="strip">${strip}</div>
     <ul class="dqs">${rows}</ul>
     <div class="row" style="margin-top:12px">
       ${ready.length > 1 ? `<button class="btn primary grow" data-act="dq-claim-all">Забрать всё · ${ready.reduce((a, q) => a + q.r, 0)}</button>` : ''}
@@ -843,11 +907,13 @@ function detailHTML(m) {
     <div class="meta">Уровень ${m.lvl} · опыт ${m.xp}/${need} · поколение ${m.gen}</div>
     <div class="xp"><i style="width:${pct}%"></i></div>
     <p class="sub"><b style="color:var(--fg)">${g.sp}.</b> ${g.spDesc}. Перезарядка 3 хода.</p>
-    ${upgradeHTML(m, st)}
+    ${m.arc ? '' : upgradeHTML(m, st)}
     <div class="row">
-      <button class="btn grow ${inTeam ? '' : 'primary'}" data-act="team" data-id="${m.id}">${inTeam ? 'Убрать из команды' : 'В команду'}</button>
+      ${m.arc ? `<button class="btn grow primary" data-act="unarchive" data-id="${m.id}" ${activeCount() >= COLLECTION_CAP ? 'disabled' : ''}>${activeCount() >= COLLECTION_CAP ? 'Нет места в коллекции' : 'Достать из архива'}</button>`
+        : `<button class="btn grow ${inTeam ? '' : 'primary'}" data-act="team" data-id="${m.id}">${inTeam ? 'Убрать из команды' : 'В команду'}</button>`}
       <button class="btn ${confirmId === m.id ? 'danger' : ''}" data-act="release" data-id="${m.id}">${confirmId === m.id ? `Отпустить за +${RELEASE_REFUND}?` : 'Отпустить'}</button>
     </div>
+    ${m.arc ? '' : `<div style="margin-top:8px"><button class="btn wide" data-act="archive" data-id="${m.id}" ${inTeam || S.mutants.filter(x => x.arc).length >= ARCHIVE_CAP ? 'disabled' : ''}>${inTeam ? 'В архив (сначала убери из команды)' : 'В архив'}</button></div>`}
     <div style="margin-top:8px"><button class="btn wide" data-act="close">Закрыть</button></div>`;
 }
 
@@ -1039,6 +1105,24 @@ function act_(a, d) {
       else S.team[2] = id;
       save(); openModal(detailHTML(byId(id))); render(); break;
     }
+    case 'lab-claim': {
+      const total = labPending(), give = Math.floor(total);
+      if (give < 1) break;
+      S.coins += give; S.lab = { t: Date.now(), f: total - give };
+      save(); render(); break;
+    }
+    case 'arc-toggle': showArc = !showArc; render(); break;
+    case 'archive': {
+      const m = byId(id);
+      if (!m || m.arc || S.team.includes(id) || S.mutants.filter(x => x.arc).length >= ARCHIVE_CAP) break;
+      m.arc = 1; picks = picks.filter(p => p !== id);
+      save(); closeModal(); render(); break;
+    }
+    case 'unarchive': {
+      const m = byId(id);
+      if (!m || !m.arc || activeCount() >= COLLECTION_CAP) break;
+      delete m.arc; save(); closeModal(); render(); break;
+    }
     case 'daily': if (Bt) break; openModal(dailyHTML()); break;
     case 'dq-claim': {
       ensureDaily();
@@ -1060,11 +1144,12 @@ function act_(a, d) {
       save(); openModal(detailHTML(m)); render(); break;
     }
     case 'release': {
-      if (S.mutants.length <= 1) break;
+      const rm = byId(id); if (!rm) break;
+      if (!rm.arc && activeCount() <= 1) break;
       if (confirmId !== id) { confirmId = id; openModal(detailHTML(byId(id))); break; }
       S.mutants = S.mutants.filter(m => m.id !== id);
       S.team = S.team.filter(t => t !== id);
-      if (!S.team.length) S.team = S.mutants.slice(0, 3).map(m => m.id);
+      if (!S.team.length) S.team = active().slice(0, 3).map(m => m.id);
       picks = picks.filter(p => p !== id);
       S.coins += RELEASE_REFUND; save(); closeModal(); render(); break;
     }
@@ -1074,7 +1159,7 @@ function act_(a, d) {
       render(); break;
     }
     case 'breed': {
-      if (picks.length !== 2 || S.coins < breedCost() || S.mutants.length >= COLLECTION_CAP) break;
+      if (picks.length !== 2 || S.coins < breedCost() || activeCount() >= COLLECTION_CAP) break;
       const r = breedGenes(byId(picks[0]), byId(picks[1]));
       S.coins -= breedCost(); dq('breed');
       const n = newMutant(r.g, r.gen);
@@ -1085,7 +1170,7 @@ function act_(a, d) {
       if (!GENES[a] || !GENES[b]) break;
       const price = a === b ? SAMPLE_COST : HYBRID_COST;
       if (a !== b && !S.seen[speciesKey(a, b)]) break;
-      if (S.coins < price || S.mutants.length >= COLLECTION_CAP) break;
+      if (S.coins < price || activeCount() >= COLLECTION_CAP) break;
       S.coins -= price;
       const n = newMutant([a, b], 0);
       save(); render(); showNewborn(n.m, n.fresh, false, n.bingo); break;
@@ -1225,6 +1310,7 @@ function viewTop() {
 }
 
 cloudLoad();
+setInterval(() => { if (tab === 'arena' && !Bt && $('#modal').hidden) updateLab(); }, 20000);
 render();
 submitScore();
 if (pendingBingo.length) {
