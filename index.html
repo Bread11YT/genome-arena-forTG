@@ -632,7 +632,7 @@ function ensureLab() {
   if (!S.lab) { S.lab = { t: Date.now(), f: 0 }; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
   if (S.lab.t > Date.now()) S.lab.t = Date.now();          // часы переведены назад: не наказываем
 }
-const labRate = () => active().reduce((a, m) => a + LAB_BASE + LAB_PER_LVL * m.lvl, 0);
+const labRate = () => S.mutants.reduce((a, m) => a + LAB_BASE + LAB_PER_LVL * m.lvl, 0);
 function labPending() {
   ensureLab();
   const el = Math.min(Date.now() - S.lab.t, LAB_CAP_H * 3600000);
@@ -686,7 +686,7 @@ function labHTML() {
   const cur = Math.min(Math.floor(labPending()), max);
   return `<section class="panel">
     <h2 class="h">Лаборатория</h2>
-    <p class="sub">Мутанты работают, пока тебя нет, и копят монеты до ${LAB_CAP_H} часов. Чем выше уровень, тем больше доход. Архивные не работают.</p>
+    <p class="sub">Мутанты работают, пока тебя нет, и копят монеты до ${LAB_CAP_H} часов. Чем выше уровень, тем больше доход. Архивные мутанты тоже работают.</p>
     <div class="row">
       <div class="grow"><div class="meta"><b id="labAmt" style="color:var(--fg)">${cur}</b> / ${max} · +${rate.toFixed(1).replace('.', ',')} в час</div>
         <div class="xp" style="margin-bottom:0"><i id="labBar" style="width:${Math.round(cur / max * 100)}%"></i></div></div>
@@ -791,7 +791,7 @@ function viewMutants() {
   </section>
   <section class="panel">
     <button class="btn wide" data-act="arc-toggle">Архив · ${arc.length}/${ARCHIVE_CAP} ${showArc ? '▴' : '▾'}</button>
-    ${showArc ? `<p class="sub" style="margin:10px 0">Здесь лежат мутанты, которые не нужны сейчас. Они не занимают места в коллекции, но и не работают в лаборатории.</p>
+    ${showArc ? `<p class="sub" style="margin:10px 0">Здесь лежат мутанты, которые не нужны сейчас. Они не занимают места в коллекции, но продолжают работать в лаборатории.</p>
       ${arcGrid ? `<div class="gridm">${arcGrid}</div>` : '<p class="sub center" style="margin:0">Пока пусто. Убрать мутанта в архив можно в его карточке.</p>'}` : ''}
   </section>
   <section class="panel">
