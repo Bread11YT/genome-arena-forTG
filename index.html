@@ -686,6 +686,57 @@ function renderTop() {
 }
 
 /* ---------- ЭКРАНЫ ---------- */
+/* ---------- РЕФЕРАЛКИ ---------- */
+const BOT_LINK = 'https://t.me/genomebreadbot/arena';   // ссылка на игру: t.me/ИМЯ_БОТА/КОРОТКОЕ_ИМЯ_ПРИЛОЖЕНИЯ
+const REF_BASE = 50, REF_STEP = 10;                      // только для текста; реальные суммы считает сервер (worker.js)
+var REF = { ok: false, total: 0, qualified: 0, claimed: 0, pending: 0, next: REF_BASE + REF_STEP };
+const refLink = () => TGU ? `${BOT_LINK}?startapp=ref_${TGU.id}` : '';
+function refHTML() {
+  if (!canSync) return '';                                // вне Telegram рефералок нет
+  return `<section class="panel">
+    <h2 class="h">Друзья</h2>
+    <p class="sub">Пригласи друга по своей ссылке и получи монеты: за 1-го друга ${REF_BASE + REF_STEP}, за 2-го ${REF_BASE + 2 * REF_STEP}, и так далее, каждый следующий на ${REF_STEP} больше. Следующий принесёт ${REF.next}. Монеты придут сами, когда друг зайдёт по ссылке, а ты откроешь игру.</p>
+    <div class="meta" style="margin-bottom:8px">Приглашено друзей: <b style="color:var(--fg)">${REF.total}</b></div>
+    <div class="row">
+      <button class="btn primary grow" data-act="ref-share">Пригласить друга</button>
+      <button class="btn" data-act="ref-copy">Скопировать ссылку</button>
+    </div>
+  </section>`;
+}
+let refBusy = false;
+async function refSync(auto) {
+  if (!canSync) return;
+  try {
+    const sp = TG && TG.initDataUnsafe && TG.initDataUnsafe.start_param;
+    if (sp && /^ref_\d+$/.test(sp) && !localStorage.getItem(KEY + ':refsent')) {    // зашёл по чужой ссылке
+      await api('/ref', { action: 'register' });
+      try { localStorage.setItem(KEY + ':refsent', '1'); } catch (e) {}
+    }
+    const st = await api('/ref', { action: 'status' });
+    Object.assign(REF, st, { ok: true });
+    if (auto && REF.pending > 0 && !Bt && !refBusy) return refClaim();             // начисляем монеты за друзей сами
+    if (tab === 'arena' && !Bt && $('#modal').hidden) render();
+  } catch (e) {}
+}
+async function refClaim() {
+  if (refBusy) return;
+  refBusy = true;
+  try {
+    const r = await api('/ref', { action: 'claim' });
+    if (r.ok && r.coins > 0) { S.coins += r.coins; save(); notify('+' + r.coins + ' монет за приглашённых друзей!'); }
+    Object.assign(REF, r);
+  } catch (e) {}
+  refBusy = false;
+  await refSync(false); render();
+}
+
+function askNotifyHTML() {
+  if (!canSync || !TG || !TG.requestWriteAccess || !TGU || TGU.allows_write_to_pm) return '';
+  try { if (localStorage.getItem(KEY + ':notif')) return ''; } catch (e) {}
+  return `<div style="margin-top:10px"><button class="btn wide" data-act="notify-on">Получать уведомления от бота</button>
+    <p class="sub center" style="margin:4px 0 0">Бот напишет, когда лаборатория заполнится и когда друг зайдёт по твоей ссылке.</p></div>`;
+}
+
 function labHTML() {
   const rate = labRate(), max = Math.max(1, Math.floor(rate * LAB_CAP_H));
   const cur = Math.min(Math.floor(labPending()), max);
@@ -697,6 +748,7 @@ function labHTML() {
         <div class="xp" style="margin-bottom:0"><i id="labBar" style="width:${Math.round(cur / max * 100)}%"></i></div></div>
       <button class="btn primary" id="labClaim" data-act="lab-claim" ${cur < 1 ? 'disabled' : ''}>Забрать</button>
     </div>
+    ${askNotifyHTML()}
   </section>`;
 }
 function updateLab() {
@@ -725,6 +777,7 @@ function viewArena() {
     <div style="margin-top:12px"><button class="btn primary wide" data-act="fight">В бой</button></div>
   </section>
   ${labHTML()}
+  ${refHTML()}
   <section class="panel">
     <h2 class="h">Кто кого пробивает</h2>
     <div class="cycle">${geneChip('fang')}<b>→</b>${geneChip('spore')}<b>→</b>${geneChip('ether')}<b>→</b>${geneChip('steel')}<b>→</b>${geneChip('bone')}<b>→</b>${geneChip('fang')}</div>
@@ -1116,6 +1169,23 @@ function act_(a, d) {
       else S.team[2] = id;
       save(); openModal(detailHTML(byId(id))); render(); break;
     }
+    case 'ref-share': {
+      const link = refLink(); if (!link) break;
+      const url = 'https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=' + encodeURIComponent('Заходи в Геномную арену: скрещивай мутантов и сражайся!');
+      if (TG && TG.openTelegramLink) TG.openTelegramLink(url); else window.open(url, '_blank');
+      break;
+    }
+    case 'ref-copy': {
+      const link = refLink(); if (!link) break;
+      try { navigator.clipboard.writeText(link).then(() => notify('Ссылка скопирована. Отправь её другу.')).catch(() => notify(link)); } catch (e) { notify(link); }
+      break;
+    }
+    case 'notify-on':
+      TG.requestWriteAccess(ok => {
+        if (ok) { try { localStorage.setItem(KEY + ':notif', '1'); } catch (e) {} notify('Готово. Бот будет присылать уведомления в чат.'); }
+        render();
+      });
+      break;
     case 'lab-claim': {
       const total = labPending(), give = Math.floor(total);
       if (give < 1) break;
@@ -1272,7 +1342,7 @@ function schedulePush(delay) { if (!canSync) return; clearTimeout(pushTimer); pu
 
 async function api(path, body) {
   const r = await fetch(SAVE_API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: TG_DATA, ...body }) });
-  if (!r.ok) { const e = new Error('http ' + r.status); e.status = r.status; throw e; }
+  if (!r.ok) { const e = new Error('http ' + r.status); e.status = r.status; try { e.reason = (await r.json()).reason; } catch (x) {} throw e; }
   return r.json();
 }
 const retryIn = e => (e && e.status === 401 ? 300000 : 30000);
@@ -1362,7 +1432,8 @@ async function syncNow() {
     const r = await api('/load', {});
     msg = `Сервер отвечает. На сервере: ${r.data ? 'версия ' + r.rev : 'пусто'}. На этом устройстве: версия ${SM.rev}${SM.dirty ? ' (есть неотправленные изменения)' : ''}.`;
   } catch (e) {
-    msg = e.status === 401 ? 'Сервер отклонил подпись (ошибка 401). Проверь секрет BOT_TOKEN в Worker.' : e.status ? 'Ошибка сервера ' + e.status + '. Проверь Worker и базу.' : 'Нет связи с сервером. Проверь адрес Worker и что он развёрнут.';
+    const why = { no_token: 'В Worker не задан секрет BOT_TOKEN (или он назван по-другому).', bad_signature: 'Подпись не сходится: BOT_TOKEN в Worker не от того бота, через которого открыта игра, или в нём лишние символы.', expired: 'Подпись устарела: закрой игру полностью и открой заново.', no_init: 'Игра не передала данные Telegram.', no_hash: 'Игра не передала подпись Telegram.', bad_user: 'В данных Telegram нет пользователя.' };
+    msg = e.status === 401 ? 'Сервер отклонил подпись (ошибка 401). ' + (why[e.reason] || 'Причина неизвестна, проверь BOT_TOKEN в Worker.') : e.status ? 'Ошибка сервера ' + e.status + '. Проверь Worker и базу.' : 'Нет связи с сервером. Проверь адрес Worker и что он развёрнут.';
   }
   notify(msg);
   if (SM.dirty) await pushNow();
@@ -1372,7 +1443,7 @@ async function syncNow() {
 document.addEventListener('visibilitychange', () => {
   if (!canSync) return;
   if (document.visibilityState === 'hidden') { if (SM.dirty) pushNow(); }
-  else if (!Bt && !pushing) syncLoad();
+  else if (!Bt && !pushing) { syncLoad(); refSync(true); }
 });
 
 // старое сохранение (до привязки к аккаунтам) лежит под общим ключом; забрать его можно только вручную, один раз
@@ -1430,6 +1501,7 @@ function viewTop() {
 }
 
 syncLoad();
+refSync(true);
 setInterval(() => { if (tab === 'arena' && !Bt && $('#modal').hidden) updateLab(); }, 20000);
 render();
 submitScore();
