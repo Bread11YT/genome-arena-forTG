@@ -689,6 +689,7 @@ function renderTop() {
 /* ---------- РЕФЕРАЛКИ ---------- */
 const BOT_LINK = 'https://t.me/genomebreadbot/arena';   // ссылка на игру: t.me/ИМЯ_БОТА/КОРОТКОЕ_ИМЯ_ПРИЛОЖЕНИЯ
 const REF_BASE = 50, REF_STEP = 10;                      // только для текста; реальные суммы считает сервер (worker.js)
+var refErr = '', refReg = '';
 var REF = { ok: false, total: 0, qualified: 0, claimed: 0, pending: 0, next: REF_BASE + REF_STEP };
 const refLink = () => TGU ? `${BOT_LINK}?startapp=ref_${TGU.id}` : '';
 function refHTML() {
@@ -697,6 +698,8 @@ function refHTML() {
     <h2 class="h">Друзья</h2>
     <p class="sub">Пригласи друга по своей ссылке и получи монеты: за 1-го друга ${REF_BASE + REF_STEP}, за 2-го ${REF_BASE + 2 * REF_STEP}, и так далее, каждый следующий на ${REF_STEP} больше. Следующий принесёт ${REF.next}. Монеты придут сами, когда друг зайдёт по ссылке, а ты откроешь игру.</p>
     <div class="meta" style="margin-bottom:8px">Приглашено друзей: <b style="color:var(--fg)">${REF.total}</b></div>
+    ${refReg ? `<p class="sub" style="margin:0 0 8px">${refReg}</p>` : ''}
+    ${refErr ? `<p class="sub" style="margin:0 0 8px;color:var(--bad)">Не удалось связаться с сервером друзей: ${refErr}</p>` : ''}
     <div class="row">
       <button class="btn primary grow" data-act="ref-share">Пригласить друга</button>
       <button class="btn" data-act="ref-copy">Скопировать ссылку</button>
@@ -709,14 +712,19 @@ async function refSync(auto) {
   try {
     const sp = TG && TG.initDataUnsafe && TG.initDataUnsafe.start_param;
     if (sp && /^ref_\d+$/.test(sp) && !localStorage.getItem(KEY + ':refsent')) {    // зашёл по чужой ссылке
-      await api('/ref', { action: 'register' });
+      const rr = await api('/ref', { action: 'register' });
       try { localStorage.setItem(KEY + ':refsent', '1'); } catch (e) {}
+      refReg = rr.ok ? 'Ты пришёл по приглашению друга, он получил награду.' : ({ self: 'Это твоя собственная ссылка: себя пригласить нельзя.', no_ref: 'Ссылка приглашения не распознана.' }[rr.reason] || 'Приглашение не засчитано.');
     }
     const st = await api('/ref', { action: 'status' });
+    refErr = '';
     Object.assign(REF, st, { ok: true });
     if (auto && REF.pending > 0 && !Bt && !refBusy) return refClaim();             // начисляем монеты за друзей сами
     if (tab === 'arena' && !Bt && $('#modal').hidden) render();
-  } catch (e) {}
+  } catch (e) {
+    refErr = e.status ? e.status + (e.detail ? ' (' + e.detail + ')' : '') : 'нет связи';
+    if (tab === 'arena' && !Bt && $('#modal').hidden) render();
+  }
 }
 async function refClaim() {
   if (refBusy) return;
@@ -731,8 +739,11 @@ async function refClaim() {
 }
 
 function askNotifyHTML() {
-  if (!canSync || !TG || !TG.requestWriteAccess || !TGU || TGU.allows_write_to_pm) return '';
-  try { if (localStorage.getItem(KEY + ':notif')) return ''; } catch (e) {}
+  if (!canSync || !TGU) return '';
+  let on = !!TGU.allows_write_to_pm;
+  try { if (localStorage.getItem(KEY + ':notif')) on = true; } catch (e) {}
+  if (on) return '<p class="sub center" style="margin:10px 0 0">Уведомления от бота: включены.</p>';
+  if (!TG || !TG.requestWriteAccess) return '<p class="sub center" style="margin:10px 0 0">Уведомления от бота: не поддерживаются этой версией Telegram. Нажми Start в чате с ботом и обнови Telegram.</p>';
   return `<div style="margin-top:10px"><button class="btn wide" data-act="notify-on">Получать уведомления от бота</button>
     <p class="sub center" style="margin:4px 0 0">Бот напишет, когда лаборатория заполнится и когда друг зайдёт по твоей ссылке.</p></div>`;
 }
@@ -1342,7 +1353,7 @@ function schedulePush(delay) { if (!canSync) return; clearTimeout(pushTimer); pu
 
 async function api(path, body) {
   const r = await fetch(SAVE_API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: TG_DATA, ...body }) });
-  if (!r.ok) { const e = new Error('http ' + r.status); e.status = r.status; try { e.reason = (await r.json()).reason; } catch (x) {} throw e; }
+  if (!r.ok) { const e = new Error('http ' + r.status); e.status = r.status; try { const j = await r.json(); e.reason = j.reason; e.detail = j.message; } catch (x) {} throw e; }
   return r.json();
 }
 const retryIn = e => (e && e.status === 401 ? 300000 : 30000);
