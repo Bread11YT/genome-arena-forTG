@@ -805,6 +805,7 @@ function viewMutants() {
   </section>` : ''; })()}
   <section class="panel">
     <p class="sub center" style="margin:0 0 8px">${syncInfo()}</p>
+    <button class="btn wide" data-act="sync-now" style="margin-bottom:8px">Проверить синхронизацию</button>
     <button class="btn danger wide" data-act="reset">${confirmId === 'reset' ? 'Точно стереть всё?' : 'Начать игру заново'}</button>
   </section>`;
 }
@@ -1129,6 +1130,7 @@ function act_(a, d) {
       SM.force = true; SM.dirty = true; smSave();
       location.reload(); break;
     }
+    case 'sync-now': syncNow(); break;
     case 'arc-toggle': showArc = !showArc; render(); break;
     case 'archive': {
       const m = byId(id);
@@ -1347,7 +1349,26 @@ async function syncLoad() {
     if (SM.dirty) schedulePush(retryIn(e));
   }
 }
-const syncInfo = () => !canSync ? 'Синхронизация работает только внутри Telegram.' : syncErr ? 'Облако: ' + syncErr + ', повторим позже.' : SM.dirty ? 'Облако: отправляем…' : 'Облако: прогресс сохранён.';
+const BUILD = 'sync-2';
+const syncInfo = () => {
+  const st = !canSync ? 'не работает: игра открыта не через Telegram' : syncErr ? syncErr + ', повторим позже' : SM.dirty ? 'отправляем…' : 'прогресс сохранён';
+  return 'Облако: ' + st + `<br><span style="opacity:.7">сборка ${BUILD} · аккаунт ${TGU ? TGU.id : 'нет'} · версия на устройстве ${SM.rev}</span>`;
+};
+function notify(msg) { try { if (TG && TG.showAlert) return TG.showAlert(msg); } catch (e) {} alert(msg); }
+async function syncNow() {
+  if (!canSync) return notify(TG_DATA ? 'Адрес сервера не задан.' : 'Игра открыта не через Telegram, синхронизация там не работает. Открой игру из бота.');
+  let msg;
+  try {
+    const r = await api('/load', {});
+    msg = `Сервер отвечает. На сервере: ${r.data ? 'версия ' + r.rev : 'пусто'}. На этом устройстве: версия ${SM.rev}${SM.dirty ? ' (есть неотправленные изменения)' : ''}.`;
+  } catch (e) {
+    msg = e.status === 401 ? 'Сервер отклонил подпись (ошибка 401). Проверь секрет BOT_TOKEN в Worker.' : e.status ? 'Ошибка сервера ' + e.status + '. Проверь Worker и базу.' : 'Нет связи с сервером. Проверь адрес Worker и что он развёрнут.';
+  }
+  notify(msg);
+  if (SM.dirty) await pushNow();
+  await syncLoad();
+  render();
+}
 document.addEventListener('visibilitychange', () => {
   if (!canSync) return;
   if (document.visibilityState === 'hidden') { if (SM.dirty) pushNow(); }
