@@ -578,7 +578,9 @@ function creatureSVG(g1, g2) {
 }
 
 /* ---------- СОСТОЯНИЕ ---------- */
-const KEY = 'genome-arena-v1';
+const LEGACY_KEY = 'genome-arena-v1';
+const TGU = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) || null;
+const KEY = TGU ? LEGACY_KEY + ':u' + TGU.id : LEGACY_KEY;   // у каждого аккаунта Telegram своё сохранение
 function defaults() {
   const mk = (id, g) => ({ id, g, lvl: 1, xp: 0, gen: 0 });
   return {
@@ -587,12 +589,15 @@ function defaults() {
     team: [1, 2, 3],
     seen: { 'fang-fang': 1, 'steel-steel': 1, 'spore-spore': 1 },
     claimed: {},
-    foe: null
+    foe: null,
+    uid: TGU ? TGU.id : undefined
   };
 }
 let S;
 try { S = JSON.parse(localStorage.getItem(KEY)); } catch (e) { S = null; }
+if (S && S.uid && TGU && S.uid !== TGU.id) S = null;   // чужое сохранение: не используем
 if (!S || !Array.isArray(S.mutants) || !S.mutants.length) S = defaults();
+if (TGU) S.uid = TGU.id;
 S.team = (S.team || []).filter(id => S.mutants.some(m => m.id === id && !m.arc)).slice(0, 3);
 if (!S.team.length) S.team = S.mutants.filter(m => !m.arc).slice(0, 3).map(m => m.id);
 if (!S.foe || S.foe.stage !== S.stage) S.foe = genFoeSpec(S.stage);
@@ -794,6 +799,10 @@ function viewMutants() {
     ${showArc ? `<p class="sub" style="margin:10px 0">Здесь лежат мутанты, которые не нужны сейчас. Они не занимают места в коллекции, но продолжают работать в лаборатории.</p>
       ${arcGrid ? `<div class="gridm">${arcGrid}</div>` : '<p class="sub center" style="margin:0">Пока пусто. Убрать мутанта в архив можно в его карточке.</p>'}` : ''}
   </section>
+  ${(() => { const lg = legacySave(); return lg ? `<section class="panel">
+    <p class="sub">На этом устройстве осталось сохранение, сделанное до привязки к аккаунтам (стадия ${lg.stage || 1}, побед ${lg.wins || 0}). Если это твой прогресс, забери его в этот аккаунт. Сделать это можно только один раз и только в одном аккаунте. Текущий прогресс этого аккаунта будет заменён.</p>
+    <button class="btn wide" data-act="adopt">${confirmId === 'adopt' ? 'Точно, это мой прогресс' : 'Забрать старое сохранение'}</button>
+  </section>` : ''; })()}
   <section class="panel">
     <button class="btn danger wide" data-act="reset">${confirmId === 'reset' ? 'Точно стереть всё?' : 'Начать игру заново'}</button>
   </section>`;
@@ -1111,6 +1120,13 @@ function act_(a, d) {
       S.coins += give; S.lab = { t: Date.now(), f: total - give };
       save(); render(); break;
     }
+    case 'adopt': {
+      const o = legacySave(); if (!o) break;
+      if (confirmId !== 'adopt') { confirmId = 'adopt'; render(); break; }
+      o.uid = TGU.id; o.ts = Date.now();
+      try { localStorage.setItem(LEGACY_KEY + ':claimed', String(TGU.id)); localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) { break; }
+      location.reload(); break;
+    }
     case 'arc-toggle': showArc = !showArc; render(); break;
     case 'archive': {
       const m = byId(id);
@@ -1250,6 +1266,16 @@ function cloudSave() {
 const hasProgress = o => !!(o.ts || o.wins || o.losses || o.stage > 1 || (o.mutants && o.mutants.length !== 3));
 function stamp() { if (!S.ts) { S.ts = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} } }
 
+// старое сохранение (до привязки к аккаунтам) лежит под общим ключом; забрать его можно только вручную, один раз
+function legacySave() {
+  if (!TGU) return null;
+  try {
+    if (localStorage.getItem(LEGACY_KEY + ':claimed')) return null;
+    const o = JSON.parse(localStorage.getItem(LEGACY_KEY));
+    return o && Array.isArray(o.mutants) && hasProgress(o) ? o : null;
+  } catch (e) { return null; }
+}
+
 async function cloudLoad() {
   if (!CS) return;
   const r = await csGet(['n']);
@@ -1260,6 +1286,7 @@ async function cloudLoad() {
   let str = '';
   for (let i = 0; i < n; i++) str += parts['s' + i] || '';
   let c; try { c = JSON.parse(str); } catch (e) { return; }
+  if (c.uid && TGU && c.uid !== TGU.id) { if (hasProgress(S)) { stamp(); cloudSave(); } return; }   // в облаке данные другого аккаунта
   const ct = c.ts || 0, lt = S.ts || 0;
   if (ct > lt || (!hasProgress(S) && hasProgress(c))) { localStorage.setItem(KEY, str); location.reload(); }  // в облаке новее
   else if (hasProgress(S) && (lt > ct || (!lt && !ct))) { stamp(); cloudSave(); }                           // локально новее
