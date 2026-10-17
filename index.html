@@ -609,7 +609,7 @@ const breedCost = () => bonus().breedCost;
 
 function save() {
   try { S.ts = Date.now(); localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { /* без сохранения игра работает */ }
-  cloudSave();
+  markDirty();
 }
 const dqK = () => 1 + 0.05 * (S.stage - 1);
 const yesterdayKey = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
@@ -804,6 +804,7 @@ function viewMutants() {
     <button class="btn wide" data-act="adopt">${confirmId === 'adopt' ? 'Точно, это мой прогресс' : 'Забрать старое сохранение'}</button>
   </section>` : ''; })()}
   <section class="panel">
+    <p class="sub center" style="margin:0 0 8px">${syncInfo()}</p>
     <button class="btn danger wide" data-act="reset">${confirmId === 'reset' ? 'Точно стереть всё?' : 'Начать игру заново'}</button>
   </section>`;
 }
@@ -1125,6 +1126,7 @@ function act_(a, d) {
       if (confirmId !== 'adopt') { confirmId = 'adopt'; render(); break; }
       o.uid = TGU.id; o.ts = Date.now();
       try { localStorage.setItem(LEGACY_KEY + ':claimed', String(TGU.id)); localStorage.setItem(KEY, JSON.stringify(o)); } catch (e) { break; }
+      SM.force = true; SM.dirty = true; smSave();
       location.reload(); break;
     }
     case 'arc-toggle': showArc = !showArc; render(); break;
@@ -1193,7 +1195,7 @@ function act_(a, d) {
     }
     case 'reset':
       if (confirmId !== 'reset') { confirmId = 'reset'; render(); break; }
-      S = defaults(); S.foe = genFoeSpec(1); picks = []; confirmId = null; save(); tab = 'arena'; render(); break;
+      S = defaults(); S.foe = genFoeSpec(1); picks = []; confirmId = null; save(); if (SM) { SM.force = true; smSave(); } tab = 'arena'; render(); break;
     case 'bingo-open': tab = 'bingo'; closeModal(); render(); window.scrollTo(0, 0); break;
     /* бой */
     case 'mode-attack': if (Bt && Bt.cur && !Bt.busy) { Bt.mode = 'attack'; updateBattle(); } break;
@@ -1247,24 +1249,110 @@ try {
 
 let LB = { status: 'idle', top: [], mine: null };
 
-/* ---------- ОБЛАЧНОЕ СОХРАНЕНИЕ (Telegram CloudStorage) ---------- */
+/* ---------- СИНХРОНИЗАЦИЯ С СЕРВЕРОМ (Cloudflare Worker + база D1) ---------- */
+const SAVE_API = 'https://arena-save.dan8lggflowersyt.workers.dev';
+const canSync = !!(SAVE_API && TG_DATA);
+// старое облако Telegram: читается один раз, чтобы не потерять прогресс прежних версий
 var CS = (TG && TG.CloudStorage && TG.isVersionAtLeast && TG.isVersionAtLeast('6.9')) ? TG.CloudStorage : null;
-var csSet = (k, v) => new Promise(res => CS.setItem(k, v, (e, ok) => res(!e)));
 var csGet = ks => new Promise(res => CS.getItems(ks, (e, v) => res(e ? null : v)));
-var cloudTimer;
-
-function cloudSave() {
-  if (!CS) return;
-  clearTimeout(cloudTimer);
-  cloudTimer = setTimeout(async () => {
-    const str = JSON.stringify(S), size = 3000, n = Math.ceil(str.length / size);
-    for (let i = 0; i < n; i++) await csSet('s' + i, str.slice(i * size, (i + 1) * size));
-    await csSet('n', String(n));
-  }, 1500);
-}
 
 const hasProgress = o => !!(o.ts || o.wins || o.losses || o.stage > 1 || (o.mutants && o.mutants.length !== 3));
-function stamp() { if (!S.ts) { S.ts = Date.now(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} } }
+const score = o => (o.wins || 0) * 10 + (o.best || o.stage || 1) * 8 + (o.mutants || []).reduce((a, m) => a + (m.lvl || 1), 0) + Object.keys(o.claimed || {}).length * 5;
+
+const SYNC_KEY = KEY + ':sync';
+var SM = null, saveSeq = 0, pushTimer = null, pushing = false, syncErr = '';
+try { SM = JSON.parse(localStorage.getItem(SYNC_KEY)); } catch (e) { SM = null; }
+if (!SM || typeof SM.rev !== 'number') SM = { rev: 0, dirty: null, force: false };   // rev: версия на сервере, на которую опирается это устройство
+function smSave() { try { localStorage.setItem(SYNC_KEY, JSON.stringify(SM)); } catch (e) {} }
+
+function markDirty() { if (!SM) return; saveSeq++; SM.dirty = true; smSave(); schedulePush(); }
+function schedulePush(delay) { if (!canSync) return; clearTimeout(pushTimer); pushTimer = setTimeout(pushNow, delay === undefined ? 4000 : delay); }
+
+async function api(path, body) {
+  const r = await fetch(SAVE_API + path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: TG_DATA, ...body }) });
+  if (!r.ok) { const e = new Error('http ' + r.status); e.status = r.status; throw e; }
+  return r.json();
+}
+const retryIn = e => (e && e.status === 401 ? 300000 : 30000);
+
+async function pushNow() {
+  if (!canSync || pushing) return;
+  pushing = true;
+  const seq = saveSeq;
+  try {
+    const res = await api('/save', { rev: SM.rev, data: JSON.stringify(S) });
+    syncErr = '';
+    if (res.ok) { SM.rev = res.rev; SM.force = false; if (seq === saveSeq) SM.dirty = false; smSave(); }
+    else if (res.conflict) { pushing = false; await resolve(res); return; }
+  } catch (e) {
+    syncErr = e.status ? 'ошибка ' + e.status : 'нет связи';
+    SM.dirty = true; smSave(); pushing = false; schedulePush(retryIn(e)); return;
+  }
+  pushing = false;
+  if (SM.dirty) schedulePush(2000);
+}
+
+function applyRemote(rev, str) {
+  try { localStorage.setItem(KEY, str); } catch (e) { return; }
+  SM = { rev, dirty: false, force: false }; smSave();
+  location.reload();
+}
+
+// на сервере другая версия, чем та, на которую опирается устройство
+async function resolve(res) {
+  let srv = null; try { srv = res.data ? JSON.parse(res.data) : null; } catch (e) {}
+  const serverOk = !!(srv && Array.isArray(srv.mutants) && srv.mutants.length);
+  const dirty = SM.dirty === null ? hasProgress(S) : SM.dirty;
+  const useServer = serverOk && !SM.force && (!dirty || score(srv) > score(S) || (score(srv) === score(S) && (srv.ts || 0) > (S.ts || 0)));
+  if (useServer) {
+    if (Bt) { setTimeout(syncLoad, 15000); return; }     // не перезагружаем игру посреди боя
+    return applyRemote(res.rev, res.data);
+  }
+  SM.rev = res.rev; SM.dirty = true; smSave(); schedulePush(300);   // локальный прогресс больше: он перезапишет серверный
+}
+
+async function legacyCloudRead() {
+  if (!CS) return null;
+  try {
+    const r = await csGet(['n']); const n = +(r && r.n); if (!n) return null;
+    const parts = await csGet(Array.from({ length: n }, (_, i) => 's' + i)); if (!parts) return null;
+    let str = ''; for (let i = 0; i < n; i++) str += parts['s' + i] || '';
+    const c = JSON.parse(str);
+    return c && Array.isArray(c.mutants) && hasProgress(c) && (!c.uid || !TGU || c.uid === TGU.id) ? c : null;
+  } catch (e) { return null; }
+}
+
+async function syncLoad() {
+  if (!canSync || pushing) return;
+  try {
+    const res = await api('/load', {});
+    syncErr = '';
+    if (SM.dirty === null) { SM.dirty = hasProgress(S); smSave(); }
+    if (!res.data) {                                          // на сервере пусто
+      if (!hasProgress(S)) {
+        const old = await legacyCloudRead();                  // единоразово: сохранение из старого облака Telegram
+        if (old) {
+          old.uid = TGU.id; old.ts = Date.now();
+          try { localStorage.setItem(KEY, JSON.stringify(old)); } catch (e) { return; }
+          SM = { rev: 0, dirty: true, force: false }; smSave(); location.reload(); return;
+        }
+        return;
+      }
+      SM.rev = 0; SM.dirty = true; smSave(); schedulePush(500); return;
+    }
+    if (res.rev === SM.rev) { if (SM.dirty) schedulePush(500); return; }
+    await resolve(res);
+  } catch (e) {
+    syncErr = e.status ? 'ошибка ' + e.status : 'нет связи';
+    if (SM.dirty) schedulePush(retryIn(e));
+  }
+}
+const syncInfo = () => !canSync ? 'Синхронизация работает только внутри Telegram.' : syncErr ? 'Облако: ' + syncErr + ', повторим позже.' : SM.dirty ? 'Облако: отправляем…' : 'Облако: прогресс сохранён.';
+document.addEventListener('visibilitychange', () => {
+  if (!canSync) return;
+  if (document.visibilityState === 'hidden') { if (SM.dirty) pushNow(); }
+  else if (!Bt && !pushing) syncLoad();
+});
 
 // старое сохранение (до привязки к аккаунтам) лежит под общим ключом; забрать его можно только вручную, один раз
 function legacySave() {
@@ -1274,22 +1362,6 @@ function legacySave() {
     const o = JSON.parse(localStorage.getItem(LEGACY_KEY));
     return o && Array.isArray(o.mutants) && hasProgress(o) ? o : null;
   } catch (e) { return null; }
-}
-
-async function cloudLoad() {
-  if (!CS) return;
-  const r = await csGet(['n']);
-  const n = +(r && r.n);
-  if (!n) { if (hasProgress(S)) { stamp(); cloudSave(); } return; }   // облако пустое: грузим только настоящий прогресс
-  const parts = await csGet(Array.from({ length: n }, (_, i) => 's' + i));
-  if (!parts) return;
-  let str = '';
-  for (let i = 0; i < n; i++) str += parts['s' + i] || '';
-  let c; try { c = JSON.parse(str); } catch (e) { return; }
-  if (c.uid && TGU && c.uid !== TGU.id) { if (hasProgress(S)) { stamp(); cloudSave(); } return; }   // в облаке данные другого аккаунта
-  const ct = c.ts || 0, lt = S.ts || 0;
-  if (ct > lt || (!hasProgress(S) && hasProgress(c))) { localStorage.setItem(KEY, str); location.reload(); }  // в облаке новее
-  else if (hasProgress(S) && (lt > ct || (!lt && !ct))) { stamp(); cloudSave(); }                           // локально новее
 }
 
 async function submitScore() {
@@ -1336,7 +1408,7 @@ function viewTop() {
   </section>`;
 }
 
-cloudLoad();
+syncLoad();
 setInterval(() => { if (tab === 'arena' && !Bt && $('#modal').hidden) updateLab(); }, 20000);
 render();
 submitScore();
