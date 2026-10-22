@@ -99,7 +99,8 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--coin);outl
 .badge.boss{background:var(--bad);color:var(--ink);border-color:var(--bad)}
 
 .gene{display:inline-flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:11px;font-weight:700}
-.gene::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--c)}
+.gene::before{display:none}
+.gi{display:inline-block;vertical-align:-3px;flex:none}
 .cycle{display:flex;flex-wrap:wrap;gap:6px 8px;align-items:center;font-size:12px;color:var(--muted)}
 .cycle b{font-family:var(--font-mono);font-weight:500}
 
@@ -184,7 +185,7 @@ body.in-battle .tabs{display:none}
 /* бинго */
 .bingo{display:grid;grid-template-columns:20px repeat(5,minmax(0,1fr));gap:4px;align-items:stretch}
 .bh{display:grid;place-items:center;min-height:20px}
-.bh i{width:12px;height:12px;border-radius:50%;background:var(--c)}
+.bh .gi{vertical-align:middle}
 .bc{min-width:0;background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:3px 3px 4px;text-align:center}
 .bc .art{border-radius:6px}
 .bc .nm{font-size:9px;margin-top:3px;line-height:1.2}
@@ -214,6 +215,14 @@ body.in-battle .tabs{display:none}
 .lb li:nth-child(3) .pos{color:#d98e55}
 .lb .who{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lb .sc{flex:none;font-family:var(--font-mono);font-weight:700;font-size:13px;color:var(--coin);font-variant-numeric:tabular-nums}
+/* кнопка «кто кого бьёт» и окно с кругом */
+.chartbtn{width:30px;height:30px;border-radius:50%;background:var(--surface2);border:1px solid var(--line);display:grid;place-items:center;padding:0;color:var(--muted)}
+.chartbtn:hover{border-color:var(--muted)}
+.panel.has-chart{position:relative}
+.panel.has-chart>.chartbtn{position:absolute;top:10px;right:10px}
+.battle{position:relative}
+.battle>.chartbtn{position:absolute;top:2px;right:0;z-index:6}
+.battle .mid{padding-left:36px;padding-right:36px}
 /* экран боя: всё на одном экране, кнопки закреплены внизу */
 .battle{margin-top:6px;padding-bottom:calc(150px + env(safe-area-inset-bottom,0px))}
 .battle .mid{padding:2px 0;gap:2px}
@@ -221,7 +230,8 @@ body.in-battle .tabs{display:none}
 .battle .field{gap:10px;padding:2px 0}
 .battle .col{gap:4px}
 .battle .unit{padding-top:8px}
-.battle .unit .art{width:clamp(44px,calc(33.3vh - 168px),96px);width:clamp(44px,calc(33.3dvh - 168px),96px);margin:0 auto}
+body.in-battle .top{display:none}
+.battle .unit .art{width:clamp(44px,calc(33.3vh - 146px),110px);width:clamp(44px,calc(33.3dvh - 146px),110px);margin:0 auto}
 .dock{position:fixed;left:0;right:0;bottom:0;z-index:9;background:var(--surface);border-top:1px solid var(--line);padding:8px max(16px,env(safe-area-inset-right,0px)) calc(10px + env(safe-area-inset-bottom,0px))}
 .dock>*{max-width:560px;margin-left:auto;margin-right:auto}
 .dock .hint{margin:0 0 6px;min-height:18px;font-size:12px}
@@ -694,7 +704,49 @@ let confirmId = null;    // подтверждение «отпустить»
 let Bt = null;           // текущий бой
 
 /* ---------- ОБЩИЕ КУСКИ РАЗМЕТКИ ---------- */
-const geneChip = g => `<span class="gene" style="--c:${GENES[g].hex}">${GENES[g].name}</span>`;
+/* ---------- ИКОНКИ ГЕНОВ ---------- */
+const INK = '#0d1b24';
+const GI = {
+  // Клык: два клыка в дёснах
+  fang: c => `<path d="M12.5 6H19.2C18.8 11.2 17.4 16.4 15.8 21.4 14.4 16.6 13 11.4 12.5 6Z" fill="#fff6ea" stroke="${INK}" stroke-width="1.6" stroke-linejoin="round"/><path d="M4.8 6H11.5C11 11.4 9.6 16.6 8.2 21.4 6.6 16.4 5.2 11.2 4.8 6Z" fill="#fff6ea" stroke="${INK}" stroke-width="1.6" stroke-linejoin="round"/><path d="M2.6 4.2C2.6 3.2 3.4 2.6 4.4 2.6H19.6C20.6 2.6 21.4 3.2 21.4 4.2V6.6H2.6Z" fill="${c}" stroke="${INK}" stroke-width="1.8" stroke-linejoin="round"/>`,
+  // Сталь: щит с забралом
+  steel: c => `<path d="M12 2.5L20 5.5V12C20 16.8 16.5 20 12 21.8 7.5 20 4 16.8 4 12V5.5Z" fill="${c}" stroke="${INK}" stroke-width="1.8" stroke-linejoin="round"/><rect x="7.3" y="8.8" width="9.4" height="3.4" rx="1.7" fill="#d8f2ff" stroke="${INK}" stroke-width="1.3"/><circle cx="8" cy="16" r=".9" fill="${INK}"/><circle cx="16" cy="16" r=".9" fill="${INK}"/>`,
+  // Спора: гриб
+  spore: c => `<path d="M3 12.2C3 6.8 7 3.2 12 3.2S21 6.8 21 12.2Z" fill="${c}" stroke="${INK}" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 12.2H15V18.6C15 20.2 13.8 21.2 12 21.2S9 20.2 9 18.6Z" fill="#e8f4c8" stroke="${INK}" stroke-width="1.6" stroke-linejoin="round"/><circle cx="8" cy="8.4" r="1.5" fill="#e6f5b8"/><circle cx="13.5" cy="7" r="1.2" fill="#e6f5b8"/><circle cx="16.4" cy="9.8" r="1.4" fill="#e6f5b8"/>`,
+  // Эфир: капля с глазами
+  ether: c => `<path d="M12 2.2C15.5 7.2 19 10.3 19 14.6A7 7 0 0 1 5 14.6C5 10.3 8.5 7.2 12 2.2Z" fill="${c}" stroke="${INK}" stroke-width="1.8" stroke-linejoin="round"/><circle cx="9.6" cy="14.3" r="1.9" fill="#fff"/><circle cx="14.4" cy="14.3" r="1.9" fill="#fff"/><circle cx="9.8" cy="14.5" r=".8" fill="${INK}"/><circle cx="14.6" cy="14.5" r=".8" fill="${INK}"/><path d="M9.2 8.6C10 7.6 10.6 6.9 11.2 6.2" stroke="#fff" stroke-opacity=".55" stroke-width="1.5" stroke-linecap="round" fill="none"/>`,
+  // Кость: кость (обводка собрана из тех же фигур чуть крупнее)
+  bone: c => { const sh = (e, f) => `<g fill="${f}"><rect x="${5.6 - e}" y="${9.5 - e}" width="${12.8 + 2 * e}" height="${5 + 2 * e}"/><circle cx="5.2" cy="9.2" r="${2.7 + e}"/><circle cx="5.2" cy="14.8" r="${2.7 + e}"/><circle cx="18.8" cy="9.2" r="${2.7 + e}"/><circle cx="18.8" cy="14.8" r="${2.7 + e}"/></g>`;
+    return `<g transform="rotate(-38 12 12)">${sh(1.2, INK)}${sh(0, c)}<path d="M8 10.7H16" stroke="#fff" stroke-opacity=".6" stroke-width="1.3" stroke-linecap="round"/></g>`; }
+};
+const geneIcon = (g, size = 16) => `<svg class="gi" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${GI[g](GENES[g].hex)}</svg>`;
+const geneChip = g => `<span class="gene" style="--c:${GENES[g].hex}">${geneIcon(g, 15)}${GENES[g].name}</span>`;
+
+// окно «кто кого бьёт»: круг со стрелками
+function chartHTML() {
+  const order = ['fang', 'spore', 'ether', 'steel', 'bone'];          // каждый бьёт следующего
+  const W = 340, H = 278, cx = W / 2, cy = 146, R = 92, nr = 26;
+  const P = order.map((g, i) => { const a = (-90 + i * 72) * Math.PI / 180; return { g, a, x: cx + R * Math.cos(a), y: cy + R * Math.sin(a) }; });
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="100%" style="max-width:360px;display:block;margin:0 auto" role="img" aria-label="Круг: кто кого бьёт">
+    <defs><marker id="arw" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M1 1L9 5 1 9Z" fill="#9fb0bd"/></marker></defs>`;
+  P.forEach((p, i) => {
+    const q = P[(i + 1) % 5], dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d;
+    svg += `<line x1="${(p.x + ux * (nr + 4)).toFixed(1)}" y1="${(p.y + uy * (nr + 4)).toFixed(1)}" x2="${(q.x - ux * (nr + 9)).toFixed(1)}" y2="${(q.y - uy * (nr + 9)).toFixed(1)}" stroke="#9fb0bd" stroke-width="2.2" stroke-linecap="round" marker-end="url(#arw)"/>`;
+  });
+  P.forEach(p => {
+    const ox = Math.cos(p.a), oy = Math.sin(p.a), lx = p.x + ox * (nr + 12), ly = p.y + oy * (nr + 12) + 4;
+    const anchor = Math.abs(ox) < 0.3 ? 'middle' : ox > 0 ? 'start' : 'end';
+    svg += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${nr}" fill="${GENES[p.g].hex}" fill-opacity=".16" stroke="${GENES[p.g].hex}" stroke-width="2"/>`
+      + `<svg x="${(p.x - 15).toFixed(1)}" y="${(p.y - 15).toFixed(1)}" width="30" height="30" viewBox="0 0 24 24">${GI[p.g](GENES[p.g].hex)}</svg>`
+      + `<text x="${lx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="${anchor}" font-size="13" font-weight="700" style="fill:var(--fg)">${GENES[p.g].name}</text>`;
+  });
+  svg += `<text x="${cx}" y="${cy - 2}" text-anchor="middle" font-size="12" style="fill:var(--muted)">стрелка = «бьёт»</text><text x="${cx}" y="${cy + 15}" text-anchor="middle" font-size="12" font-weight="700" style="fill:var(--good)">урон ×1,25</text></svg>`;
+  return `<h3 style="margin-top:0">Кто кого бьёт</h3>
+    ${svg}
+    <p class="sub" style="margin:10px 0 0">Считается по первому гену бойца. Бьёшь по слабому гену: урон ×1,25. Бьёшь по сильному: ×0,8.</p>
+    <div style="margin-top:12px"><button class="btn primary wide" data-act="close">Понятно</button></div>`;
+}
+const chartBtn = () => `<button class="chartbtn" data-act="chart" aria-label="Кто кого бьёт" title="Кто кого бьёт"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"><path d="M12 4L20 9.8 17 19H7L4 9.8Z" opacity=".55"/><circle cx="12" cy="4" r="2.4" fill="#ff6b57" stroke="none"/><circle cx="20" cy="9.8" r="2.4" fill="#9bd04f" stroke="none"/><circle cx="17" cy="19" r="2.4" fill="#b78cff" stroke="none"/><circle cx="7" cy="19" r="2.4" fill="#5aa9e6" stroke="none"/><circle cx="4" cy="9.8" r="2.4" fill="#e6dcc2" stroke="none"/></svg></button>`;
 const art = (g1, g2) => `<div class="art" style="--c1:${GENES[g1].hex}">${creatureSVG(g1, g2)}</div>`;
 
 function miniCard(m, opts = {}) {
@@ -702,7 +754,7 @@ function miniCard(m, opts = {}) {
   return `<div class="mc${opts.sel ? ' sel' : ''}" data-act="${opts.act || 'open'}" data-id="${m.id}" tabindex="0" role="button" aria-label="${esc(speciesName(m.g[0], m.g[1]))}, уровень ${m.lvl}">
     ${opts.badge ? `<span class="badge">${opts.badge}</span>` : ''}
     ${art(m.g[0], m.g[1])}
-    <div class="nm">${speciesName(m.g[0], m.g[1])}</div>
+    <div class="nm">${geneIcon(m.g[0], 13)} ${speciesName(m.g[0], m.g[1])}</div>
     <div class="meta">ур.${m.lvl} · пок.${m.gen}</div>
   </div>`;
 }
@@ -711,7 +763,7 @@ function foeCard(u, boss) {
   return `<div class="mc" style="cursor:default">
     ${boss ? '<span class="badge boss">босс</span>' : ''}
     ${art(u.g[0], u.g[1])}
-    <div class="nm">${speciesName(u.g[0], u.g[1])}</div>
+    <div class="nm">${geneIcon(u.g[0], 13)} ${speciesName(u.g[0], u.g[1])}</div>
     <div class="meta">ур.${u.lvl}</div>
   </div>`;
 }
@@ -814,7 +866,8 @@ function viewArena() {
   const foes = S.foe.units.map((u, i) => foeCard(u, S.foe.boss && i === 1)).join('');
   const rw = rewards(S.stage, true);
   return `
-  <section class="panel">
+  <section class="panel has-chart">
+    ${chartBtn()}
     <h2 class="h">Стадия ${S.stage}${S.foe.boss ? ' · босс' : ''}</h2>
     <p class="sub">Награда за победу: ${rw.coins} монет и ${rw.xp} опыта каждому бойцу.</p>
     <div class="grid3">${foes}</div>
@@ -916,8 +969,8 @@ function viewBingo() {
   const found = LINES[LINES.length - 1].cells.filter(k => S.seen[k]).length;
   const doneKeys = new Set();
   LINES.filter(l => l.kind !== 'all' && S.claimed[l.id]).forEach(l => l.cells.forEach(k => doneKeys.add(k)));
-  const head = GENE_IDS.map(g => `<div class="bh" title="${GENES[g].name}" style="--c:${GENES[g].hex}"><i></i></div>`).join('');
-  const rows = GENE_IDS.map(a => `<div class="bh" title="${GENES[a].name}" style="--c:${GENES[a].hex}"><i></i></div>` +
+  const head = GENE_IDS.map(g => `<div class="bh" title="${GENES[g].name}">${geneIcon(g, 18)}</div>`).join('');
+  const rows = GENE_IDS.map(a => `<div class="bh" title="${GENES[a].name}">${geneIcon(a, 18)}</div>` +
     GENE_IDS.map(b => {
       const k = speciesKey(a, b), ok = S.seen[k];
       return `<div class="bc${ok ? '' : ' lock'}${doneKeys.has(k) ? ' won' : ''}">${art(a, b)}<div class="nm">${ok ? speciesName(a, b) : '???'}</div></div>`;
@@ -1027,19 +1080,19 @@ const tpTop = fn => active().slice().sort((a, b) => fn(b) - fn(a)).slice(0, 3).m
 function tpSlotsHTML() {
   return [0, 1, 2].map(i => {
     const m = tpick[i] !== undefined ? byId(tpick[i]) : null;
-    return m ? `<div class="tp-cell slot" data-act="tp-slot" data-id="${i}" title="Убрать из команды">${art(m.g[0], m.g[1])}<div class="nm">${speciesName(m.g[0], m.g[1])}</div><div class="meta">ур.${m.lvl}</div></div>`
+    return m ? `<div class="tp-cell slot" data-act="tp-slot" data-id="${i}" title="Убрать из команды">${art(m.g[0], m.g[1])}<div class="nm">${geneIcon(m.g[0], 13)} ${speciesName(m.g[0], m.g[1])}</div><div class="meta">ур.${m.lvl}</div></div>`
              : '<div class="tp-cell empty">пусто</div>';
   }).join('');
 }
 function teamPickHTML() {
-  const foes = S.foe.units.map(f => `<div class="tp-cell">${art(f.g[0], f.g[1])}<div class="nm">${speciesName(f.g[0], f.g[1])}</div><div class="meta">ур.${f.lvl}</div></div>`).join('');
+  const foes = S.foe.units.map(f => `<div class="tp-cell">${art(f.g[0], f.g[1])}<div class="nm">${geneIcon(f.g[0], 13)} ${speciesName(f.g[0], f.g[1])}</div><div class="meta">ур.${f.lvl}</div></div>`).join('');
   const ms = active().slice().sort((a, b) => powerOf(b) - powerOf(a));
   const cards = ms.map(m => {
     const st = calcStats(m, 1, bonus()), h = tpHint(m);
     return `<div class="mc${tpick.includes(m.id) ? ' sel' : ''}" data-act="tp-toggle" data-id="${m.id}" tabindex="0" role="button">
       <span class="badge tpn">${tpick.indexOf(m.id) + 1}</span>
       ${art(m.g[0], m.g[1])}
-      <div class="nm">${speciesName(m.g[0], m.g[1])}</div>
+      <div class="nm">${geneIcon(m.g[0], 13)} ${speciesName(m.g[0], m.g[1])}</div>
       <div class="meta">ур.${m.lvl}</div>
       <div class="tp-st">${st.hp} / ${Math.round(st.atk)}</div>
       <div class="tp-adv"><span class="tp-up">${h.up ? '▲' + h.up : ''}</span> <span class="tp-dn">${h.dn ? '▼' + h.dn : ''}</span></div>
@@ -1098,7 +1151,7 @@ function unitHTML(u) {
     ${art(u.g[0], u.g[1])}
     <div class="bar"><i></i></div>
     <div class="stat-row"><span class="hpn"></span><span class="st"></span></div>
-    <div class="nm">${u.name}</div>
+    <div class="nm">${geneIcon(u.g[0], 13)} ${u.name}</div>
   </div>`;
 }
 
@@ -1106,9 +1159,10 @@ function startBattle() {
   const team = S.team.map(byId).filter(Boolean);
   if (!team.length) return;
   const B = newBattle(team, S.foe, bonus());
-  Bt = { B, cur: null, mode: 'attack', auto: false, busy: false, over: false, timer: null };
+  Bt = { B, cur: null, mode: 'attack', auto: false, busy: false, over: false, timer: null, stage: S.stage };
   const me = Bt;
   $('#view').innerHTML = `<div class="battle">
+    ${chartBtn()}
     <div class="mid"><div class="rd" id="rd"></div><div class="lg" id="lg"></div></div>
     <div class="field">
       <div class="col left" id="allies">${B.allies.map(unitHTML).join('')}</div>
@@ -1143,7 +1197,7 @@ function updateBattle() {
     el.classList.toggle('cur', !!cur && cur.id === u.id && !Bt.over);
     el.classList.toggle('tgt', !!needT && u.side === 'f' && va);
   });
-  $('#rd').textContent = 'Раунд ' + Math.max(1, B.round);
+  $('#rd').textContent = 'Стадия ' + Bt.stage + ' · Раунд ' + Math.max(1, B.round);
   const ctrl = $('#ctrl'), hint = $('#hint');
   const dock = document.querySelector('.dock'); if (dock) dock.classList.toggle('off', !!Bt.over);
   if (Bt.over) { ctrl.innerHTML = ''; hint.textContent = ''; return; }
@@ -1518,6 +1572,7 @@ function act_(a, d) {
   switch (a) {
     case 'tab': tab = d.tab; picks = []; if (tab === 'top') LB.status = 'loading'; render(); window.scrollTo(0, 0); if (tab === 'top') loadTop(); break;
     case 'refresh-top': LB.status = 'loading'; render(); loadTop(); break;
+    case 'chart': openModal(chartHTML()); break;
     case 'goto-mutants': tab = 'mutants'; render(); break;
     case 'team-pick': if (Bt) break; tpick = S.team.filter(i => byId(i) && !byId(i).arc); openModal(teamPickHTML()); tpUpdate(); break;
     case 'tp-toggle': {
@@ -1897,7 +1952,7 @@ function viewTop() {
     }
     sheet.hidden = true;
     const head = document.querySelector('.top'), tabs = document.querySelector('.tabs');
-    const top = head ? Math.round(head.getBoundingClientRect().bottom) + 6 : 8;
+    const top = head && head.offsetParent !== null ? Math.round(head.getBoundingClientRect().bottom) + 6 : 8;
     const tabsOn = tabs && getComputedStyle(tabs).display !== 'none';
     const dock = document.querySelector('.dock');
     const bottom = tabsOn ? Math.round(tabs.getBoundingClientRect().top) - 6 : (dock && !dock.classList.contains('off') ? Math.round(dock.getBoundingClientRect().top) - 6 : window.innerHeight - 8);
