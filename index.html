@@ -162,6 +162,24 @@ body.in-battle .tabs{display:none}
 .sheet .art{max-width:190px;margin:0 auto}
 .sheet h3{font-family:var(--font-display);font-weight:700;font-size:16px;margin:12px 0 6px;text-align:center;text-wrap:balance}
 .center{text-align:center}
+.atabs{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:14px;margin-bottom:12px}
+.atabs button{display:grid;justify-items:center;gap:4px;padding:9px 2px 8px;border-radius:10px;border:1px solid transparent;background:transparent;color:var(--muted);font-family:var(--font-display);font-weight:600;font-size:11px;letter-spacing:.02em;min-width:0}
+.atabs button svg{width:22px;height:22px}
+.atabs button.on{background:var(--surface2);border-color:var(--coin);color:var(--coin);box-shadow:inset 0 -2px 0 var(--coin)}
+.streak{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin:0 0 12px}
+.streak-top{display:grid;gap:2px}
+.streak-top b{font-family:var(--font-display);font-size:14px}
+.streak-top span{font-size:12px;color:var(--coin);font-family:var(--font-mono)}
+.pips{display:flex;gap:4px;margin-top:8px}
+.pips i{flex:1;height:8px;border-radius:4px;background:var(--ink)}
+.pips i.on{background:var(--coin)}
+.tstats,.rstats{display:grid;gap:8px;margin:4px 0 12px}
+.tstats{grid-template-columns:repeat(3,1fr)}
+.rstats{grid-template-columns:1fr 1fr}
+.tstats div,.rstats div{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 6px;text-align:center}
+.tstats b,.rstats b{display:block;font-family:var(--font-mono);font-size:19px;font-variant-numeric:tabular-nums}
+.rstats b.coinv{color:var(--coin)}
+.tstats span,.rstats span{display:block;font-size:11px;color:var(--muted);margin-top:2px}
 .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
 .stats div{background:var(--surface2);border-radius:8px;padding:8px;text-align:center}
 .stats b{display:block;font-family:var(--font-mono);font-size:17px;font-variant-numeric:tabular-nums}
@@ -173,7 +191,7 @@ body.in-battle .tabs{display:none}
 .list b{font-family:var(--font-mono)}
 
 /* лаборатория */
-.pair{display:grid;grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr);gap:8px;align-items:center;margin-bottom:12px}
+.pair{display:grid;grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr);gap:8px;align-items:center;margin-bottom:12px}
 .pair .x{font-family:var(--font-mono);color:var(--muted);text-align:center;font-size:18px}
 .codex{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .cx{display:flex;align-items:center;gap:8px;min-width:0;background:var(--surface2);border-radius:8px;padding:8px 10px;font-size:13px}
@@ -191,7 +209,10 @@ body.in-battle .tabs{display:none}
 .bc .nm{font-size:9px;margin-top:3px;line-height:1.2}
 .bc.lock .art svg{filter:brightness(0) opacity(.3)}
 .bc.lock .nm{color:var(--muted);font-weight:500}
-.bc.won{border-color:var(--coin);box-shadow:inset 0 0 0 1px var(--coin)}
+.bc.won{border-color:var(--bwc,var(--coin));box-shadow:inset 0 0 0 1px var(--bwc,var(--coin))}
+.seg5{display:grid;grid-template-columns:1.6fr repeat(4,1fr);gap:6px;margin-bottom:12px}
+.seg5 button{min-height:42px;border-radius:10px;border:1px solid var(--line);background:var(--surface2);font-weight:700;font-size:12px;display:grid;place-items:center;padding:0 2px}
+.seg5 button.on{border-color:var(--coin);color:var(--coin);box-shadow:0 0 0 1px var(--coin)}
 .rwlist{display:grid;gap:8px}
 .rw{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:4px}
 .rw.done{border-color:var(--coin)}
@@ -215,6 +236,33 @@ body.in-battle .tabs{display:none}
 .lb li:nth-child(3) .pos{color:#d98e55}
 .lb .who{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lb .sc{flex:none;font-family:var(--font-mono);font-weight:700;font-size:13px;color:var(--coin);font-variant-numeric:tabular-nums}
+/* звёздные тиры */
+.t1{--tc:#cd7f32}.t2{--tc:#c9d3dc}.t3{--tc:#ffd24d}.t4{--tc:#8fe8ff}
+.mc.tiered{border-color:var(--tc)}
+.mc.tiered .art{box-shadow:inset 0 0 0 2px var(--tc)}
+.mc.t4 .art{box-shadow:inset 0 0 0 2px var(--tc),0 0 12px color-mix(in srgb,var(--tc) 60%,transparent)}
+.tstar{position:absolute;top:5px;right:5px;z-index:2;line-height:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))}
+.mc.dim{opacity:.45}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}
+.seg button{min-height:42px;border-radius:10px;border:1px solid var(--line);background:var(--surface2);font-weight:700;font-size:14px}
+.seg button.on{border-color:var(--coin);color:var(--coin);box-shadow:0 0 0 1px var(--coin)}
+.tk{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:8px}
+.tk .info{flex:1;min-width:0}
+.tk .info b{display:block;font-size:14px}
+.tk .info span{font-size:12px;color:var(--muted)}
+.tk .own{font-family:var(--font-mono);font-weight:700;min-width:28px;text-align:right}
+.tk .btn.buy{min-height:40px;padding:6px 12px}
+.starwrap{display:grid;justify-items:center;gap:3px}
+.starwrap span{font-size:9px;line-height:1;color:var(--coin);font-weight:700}
+.starbtn{width:38px;height:38px;border-radius:50%;background:var(--surface2);border:1.5px dashed var(--coin);display:grid;place-items:center;padding:0;color:var(--coin);justify-self:center}
+.starbtn.on{border:1.5px solid var(--tc);box-shadow:0 0 0 1px var(--tc);color:var(--fg)}
+.tk.tap{cursor:pointer}
+.tk.on{border-color:var(--coin);box-shadow:0 0 0 1px var(--coin)}
+.stars-sel{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0 10px}
+.stars-sel .btn{display:grid;gap:2px;justify-items:center;padding:8px 4px;min-height:54px}
+.stars-sel small{font-size:11px;color:var(--muted)}
+.stars-sel .btn.on{border-color:var(--coin);box-shadow:0 0 0 1px var(--coin)}
+.stars-sel .btn.on small:last-child{color:var(--fg);font-weight:700}
 /* кнопка «кто кого бьёт» и окно с кругом */
 .chartbtn{width:30px;height:30px;border-radius:50%;background:var(--surface2);border:1px solid var(--line);display:grid;place-items:center;padding:0;color:var(--muted)}
 .chartbtn:hover{border-color:var(--muted)}
@@ -292,8 +340,33 @@ const speciesKey = (g1, g2) => g1 + '-' + g2;
 
 const LAB_BASE = 0.2, LAB_PER_LVL = 0.04, LAB_CAP_H = 8, ARCHIVE_CAP = 50;   // монет в час = 0.2 + 0.04 × уровень (на каждого мутанта)
 const STREAK_BASE = [30, 35, 40, 50, 60, 75, 120];                          // награды серии входов, 7-дневный цикл
+/* ---------- ЗВЁЗДНЫЕ СЛИЯНИЯ ---------- */
+const TIERS = [
+  { name: 'Обычный',    color: null,      lvl: 0,   cost: 0 },
+  { name: 'Бронзовый',  color: '#cd7f32', lvl: 10,  cost: 150 },    // lvl: с какого уровня родителей можно слить до этого тира
+  { name: 'Серебряный', color: '#c9d3dc', lvl: 25,  cost: 500 },    // cost: цена токена в магазине звёзд
+  { name: 'Золотой',    color: '#ffd24d', lvl: 50,  cost: 1000 },
+  { name: 'Платиновый', color: '#8fe8ff', lvl: 100, cost: 3000 }
+];
+const TIER_BONUS = 0.25;        // каждый тир: +25% к здоровью и атаке от обычного (серебряный = +50%)
+const MERGE_START_LVL = 1;      // с какого уровня начинает мутант после слияния
+const tierOf = m => (m && m.tier) || 0;
 const BREED_COST = 30, SAMPLE_COST = 40, HYBRID_COST = 90, RELEASE_REFUND = 8, COLLECTION_CAP = 12;
 const xpNeed = l => 18 + 8 * l;
+/* ---------- ТРЕНИРОВОЧНЫЙ ПОЛИГОН ---------- */
+const TRAIN_FOE_MAX_LVL = 4;     // враги полигона: от 1 до этого уровня
+const TRAIN_XP_WIN = 25, TRAIN_XP_LOSE = 8;
+const TRAIN_STREAK_STEP = 0.1, TRAIN_STREAK_CAP = 10;      // каждая победа подряд: +10% к опыту, максимум ×2 (на 10-й победе подряд и дальше)
+const trainMult = n => 1 + TRAIN_STREAK_STEP * Math.min(n || 0, TRAIN_STREAK_CAP);   // n = сколько побед подряд уже есть
+const fmtMult = x => String(Math.round(x * 10) / 10).replace('.', ',');
+function genTrainSpec() {
+  const units = [0, 1, 2].map(() => ({
+    g: [rndGene(), rndGene()],
+    lvl: 1 + Math.floor(Math.random() * TRAIN_FOE_MAX_LVL),
+    gen: 0
+  }));
+  return { stage: 0, boss: false, train: true, units };
+}
 const upgradeCost = l => 20 + 12 * l;
 
 /* ---------- ЕЖЕДНЕВНЫЕ ЗАДАНИЯ ---------- */
@@ -309,7 +382,8 @@ const todayKey = () => { const d = new Date(); return d.getFullYear() + '-' + St
 function calcStats(m, boost = 1, bonus = null) {
   const a = GENES[m.g[0]], b = GENES[m.g[1]];
   const lv = 1 + 0.18 * (m.lvl - 1), gn = 1 + 0.08 * m.gen;
-  const f = k => (a[k] * 0.65 + b[k] * 0.35) * lv * gn * boost;
+  const tm = 1 + TIER_BONUS * (m.tier || 0);
+  const f = k => (a[k] * 0.65 + b[k] * 0.35) * lv * gn * boost * tm;
   const hpM = bonus ? (bonus.hp[m.g[0]] || 1) * bonus.all : 1;
   const atkM = bonus ? (bonus.atk[m.g[1]] || 1) * bonus.all : 1;
   return {
@@ -363,7 +437,7 @@ const foeBoost = spec => (spec.boss ? 1.25 : 1) * (spec.stage < 3 ? 0.85 : 1) * 
 function makeUnit(m, side, idx, boost = 1, tag = '', bonus = null) {
   const st = calcStats(m, boost, bonus);
   return {
-    id: side + idx, side, g: m.g, lvl: m.lvl, gen: m.gen, ref: m,
+    id: side + idx, side, g: m.g, lvl: m.lvl, gen: m.gen, tier: m.tier || 0, ref: m,
     name: speciesName(m.g[0], m.g[1]), tag,
     hp: st.hp, max: st.hp, atk: st.atk, spd: st.spd,
     cd: 2, poison: 0, poisonDmg: 0, alive: true
@@ -534,6 +608,18 @@ function checkBingo(state) {
       got.push(l);
     }
   });
+  // звёздное бинго: за линию из мутантов тира дают токен этого тира
+  [1, 2, 3, 4].forEach(t => {
+    if (!state.seenT || !state.claimedT) return;
+    state.tokens = state.tokens || {};
+    LINES.forEach(l => {
+      if (!state.claimedT[t][l.id] && lineProgress(l, state.seenT[t]).done) {
+        state.claimedT[t][l.id] = 1;
+        state.tokens[t] = (state.tokens[t] || 0) + 1;
+        got.push(Object.assign({}, l, { tier: t }));
+      }
+    });
+  });
   return got;
 }
 
@@ -636,6 +722,8 @@ function defaults() {
     team: [1, 2, 3],
     seen: { 'fang-fang': 1, 'steel-steel': 1, 'spore-spore': 1 },
     claimed: {},
+    tokens: { 1: 0, 2: 0, 3: 0, 4: 0 },
+    seenT: { 1: {}, 2: {}, 3: {}, 4: {} }, claimedT: { 1: {}, 2: {}, 3: {}, 4: {} }, trainStreak: 0,
     foe: null,
     uid: TGU ? TGU.id : undefined
   };
@@ -649,6 +737,12 @@ S.team = (S.team || []).filter(id => S.mutants.some(m => m.id === id && !m.arc))
 if (!S.team.length) S.team = S.mutants.filter(m => !m.arc).slice(0, 3).map(m => m.id);
 if (!S.foe || S.foe.stage !== S.stage) S.foe = genFoeSpec(S.stage);
 S.seen = S.seen || {};
+S.tokens = Object.assign({ 1: 0, 2: 0, 3: 0, 4: 0 }, S.tokens || {});
+S.trainStreak = S.trainStreak || 0;
+S.seenT = S.seenT || {}; S.claimedT = S.claimedT || {};            // звёздное бинго: виды и линии по тирам
+[1, 2, 3, 4].forEach(t => { S.seenT[t] = S.seenT[t] || {}; S.claimedT[t] = S.claimedT[t] || {}; });
+S.mutants.forEach(m => { if (tierOf(m)) S.seenT[tierOf(m)][speciesKey(m.g[0], m.g[1])] = 1; });
+const seenOf = t => t ? S.seenT[t] : S.seen, claimedOf = t => t ? S.claimedT[t] : S.claimed;
 S.mutants.forEach(m => { S.seen[speciesKey(m.g[0], m.g[1])] = 1; });
 let pendingBingo = checkBingo(S);   // награды за линии, собранные до обновления игры
 const bonus = () => bonusFrom(S.claimed);
@@ -720,6 +814,7 @@ const GI = {
     return `<g transform="rotate(-38 12 12)">${sh(1.2, INK)}${sh(0, c)}<path d="M8 10.7H16" stroke="#fff" stroke-opacity=".6" stroke-width="1.3" stroke-linecap="round"/></g>`; }
 };
 const geneIcon = (g, size = 16) => `<svg class="gi" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${GI[g](GENES[g].hex)}</svg>`;
+const tierStar = (t, size = 14) => t > 0 ? `<svg class="gi" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.4l2.9 6.1 6.7.9-4.9 4.6 1.2 6.6L12 17.4l-5.9 3.2 1.2-6.6L2.4 9.4l6.7-.9z" fill="${TIERS[t].color}" stroke="${INK}" stroke-width="1.5" stroke-linejoin="round"/></svg>` : '';
 const geneChip = g => `<span class="gene" style="--c:${GENES[g].hex}">${geneIcon(g, 15)}${GENES[g].name}</span>`;
 
 // окно «кто кого бьёт»: круг со стрелками
@@ -750,12 +845,13 @@ const chartBtn = () => `<button class="chartbtn" data-act="chart" aria-label="К
 const art = (g1, g2) => `<div class="art" style="--c1:${GENES[g1].hex}">${creatureSVG(g1, g2)}</div>`;
 
 function miniCard(m, opts = {}) {
-  const st = calcStats(m);
-  return `<div class="mc${opts.sel ? ' sel' : ''}" data-act="${opts.act || 'open'}" data-id="${m.id}" tabindex="0" role="button" aria-label="${esc(speciesName(m.g[0], m.g[1]))}, уровень ${m.lvl}">
+  const t = tierOf(m);
+  return `<div class="mc${opts.sel ? ' sel' : ''}${t ? ' tiered t' + t : ''}${opts.dim ? ' dim' : ''}" data-act="${opts.act || 'open'}" data-id="${m.id}" tabindex="0" role="button" aria-label="${esc(speciesName(m.g[0], m.g[1]))}, уровень ${m.lvl}${t ? ', ' + TIERS[t].name : ''}">
     ${opts.badge ? `<span class="badge">${opts.badge}</span>` : ''}
+    ${t ? `<span class="tstar">${tierStar(t, 16)}</span>` : ''}
     ${art(m.g[0], m.g[1])}
     <div class="nm">${geneIcon(m.g[0], 13)} ${speciesName(m.g[0], m.g[1])}</div>
-    <div class="meta">ур.${m.lvl} · пок.${m.gen}</div>
+    <div class="meta">${opts.meta || `ур.${m.lvl} · пок.${m.gen}`}</div>
   </div>`;
 }
 
@@ -785,8 +881,11 @@ function refHTML() {
   if (!canSync) return '';                                // вне Telegram рефералок нет
   return `<section class="panel">
     <h2 class="h">Друзья</h2>
-    <p class="sub">Пригласи друга по своей ссылке и получи монеты: за 1-го друга ${REF_BASE + REF_STEP}, за 2-го ${REF_BASE + 2 * REF_STEP}, и так далее, каждый следующий на ${REF_STEP} больше. Следующий принесёт ${REF.next}. Монеты придут сами, когда друг зайдёт по ссылке, а ты откроешь игру.</p>
-    <div class="meta" style="margin-bottom:8px">Приглашено друзей: <b style="color:var(--fg)">${REF.total}</b></div>
+    <div class="rstats">
+      <div><b>${REF.total}</b><span>приглашено друзей</span></div>
+      <div><b class="coinv">+${REF.next}</b><span>за следующего друга</span></div>
+    </div>
+    <p class="sub">За 1-го друга ${REF_BASE + REF_STEP} монет, за 2-го ${REF_BASE + 2 * REF_STEP}, и так далее: каждый следующий приносит на ${REF_STEP} больше. Монеты придут сами, когда друг зайдёт по ссылке, а ты откроешь игру.</p>
     ${refReg ? `<p class="sub" style="margin:0 0 8px">${refReg}</p>` : ''}
     ${refErr ? `<p class="sub" style="margin:0 0 8px;color:var(--bad)">Не удалось связаться с сервером друзей: ${refErr}</p>` : ''}
     <div class="row">
@@ -860,7 +959,63 @@ function updateLab() {
   const b = $('#labClaim'); if (b) { if (cur < 1) b.setAttribute('disabled', ''); else b.removeAttribute('disabled'); }
 }
 
+let arenaSub = 'main';       // main | train | ref
+const ARENA_TABS = [
+  { id: 'main',  name: 'Арена',     icon: '<path d="M4 4l9 9M20 4l-9 9M11 13l-3 3M13 13l3 3M6.5 17.5l-2 2M17.5 17.5l2 2"/>' },
+  { id: 'train', name: 'Полигон',   icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".9" fill="currentColor"/>' },
+  { id: 'ref',   name: 'Рефералки', icon: '<rect x="4" y="9" width="16" height="11" rx="2"/><path d="M12 9v11M4 14h16M12 9c-2-4-6-3-5 0 .5 1.5 3 1 5 0zm0 0c2-4 6-3 5 0-.5 1.5-3 1-5 0z"/>' }
+];
+function arenaTabsHTML() {
+  return `<div class="atabs" role="tablist" aria-label="Раздел арены">${ARENA_TABS.map(t =>
+    `<button role="tab" aria-selected="${arenaSub === t.id}" class="${arenaSub === t.id ? 'on' : ''}" data-act="arena-sub" data-id="${t.id}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${t.icon}</svg><span>${t.name}</span></button>`).join('')}</div>`;
+}
 function viewArena() {
+  return arenaTabsHTML() + (arenaSub === 'train' ? viewTrain() : arenaSub === 'ref' ? viewRef() : viewArenaMain());
+}
+
+function streakHTML() {
+  const n = S.trainStreak || 0, cur = Math.min(n, TRAIN_STREAK_CAP);
+  const pips = Array.from({ length: TRAIN_STREAK_CAP }, (_, i) => `<i class="${i < cur ? 'on' : ''}"></i>`).join('');
+  const next = trainMult(n), xp = Math.round(TRAIN_XP_WIN * next);
+  return `<div class="streak">
+    <div class="streak-top"><b>Серия побед: ${n}</b><span>следующая победа ×${fmtMult(next)} · +${xp} опыта${n >= TRAIN_STREAK_CAP ? ' (максимум)' : ''}</span></div>
+    <div class="pips" aria-hidden="true">${pips}</div>
+    <p class="sub" style="margin:8px 0 0">Каждая победа подряд даёт +${Math.round(TRAIN_STREAK_STEP * 100)}% опыта, до ×${fmtMult(trainMult(TRAIN_STREAK_CAP))}. Поражение или отступление сбрасывает серию.</p>
+  </div>`;
+}
+
+function viewTrain() {
+  const team = S.team.map(byId);
+  const slots = [0, 1, 2].map(i => team[i] ? miniCard(team[i], { act: 'team-pick-train' }) : `<div class="mc empty" data-act="team-pick-train" style="cursor:pointer">выбрать</div>`).join('');
+  return `
+  <section class="panel">
+    <h2 class="h">Тренировочный полигон</h2>
+    <p class="sub">Спокойное место для слабых мутантов: враги совсем маленькие, монет нет, стадия не меняется. Тренируйся сколько хочешь.</p>
+    <div class="tstats">
+      <div><b>1–${TRAIN_FOE_MAX_LVL}</b><span>уровень врагов</span></div>
+      <div><b>+${TRAIN_XP_WIN}</b><span>опыта за победу</span></div>
+      <div><b>0</b><span>монет за бой</span></div>
+    </div>
+    ${streakHTML()}
+    <button class="btn primary wide" data-act="train" ${team.some(Boolean) ? '' : 'disabled'}>Тренироваться</button>
+  </section>
+  <section class="panel">
+    <h2 class="h">Кто тренируется</h2>
+    <div class="grid3">${slots}</div>
+    <div class="row" style="margin-top:12px"><button class="btn grow" data-act="team-pick-train">Сменить команду</button></div>
+  </section>`;
+}
+
+function viewRef() {
+  if (!canSync) return `<section class="panel">
+    <h2 class="h">Друзья</h2>
+    <p class="sub" style="margin:0">Приглашения работают только внутри Telegram. Открой игру через бота, и здесь появится твоя ссылка.</p>
+  </section>`;
+  return refHTML();
+}
+
+function viewArenaMain() {
   const team = S.team.map(byId);
   const slots = [0, 1, 2].map(i => team[i] ? miniCard(team[i], { act: 'team-pick' }) : `<div class="mc empty" data-act="team-pick" style="cursor:pointer">выбрать</div>`).join('');
   const foes = S.foe.units.map((u, i) => foeCard(u, S.foe.boss && i === 1)).join('');
@@ -878,7 +1033,6 @@ function viewArena() {
     <div class="row" style="margin-top:12px"><button class="btn primary grow" data-act="fight">В бой</button><button class="btn" data-act="team-pick">Сменить команду</button></div>
   </section>
   ${labHTML()}
-  ${refHTML()}
   <section class="panel">
     <h2 class="h">Кто кого пробивает</h2>
     <div class="cycle">${geneChip('fang')}<b>→</b>${geneChip('spore')}<b>→</b>${geneChip('ether')}<b>→</b>${geneChip('steel')}<b>→</b>${geneChip('bone')}<b>→</b>${geneChip('fang')}</div>
@@ -887,27 +1041,76 @@ function viewArena() {
   <p class="sub center" style="margin-top:14px">Побед: ${S.wins} · Поражений: ${S.losses} · Рекорд: стадия ${S.best}</p>`;
 }
 
-function viewLab() {
+function viewBreed() {
+  const t = starSel, T = TIERS[t];
   const a = byId(picks[0]), b = byId(picks[1]);
   const slot = m => m ? miniCard(m, { act: 'pick' }) : `<div class="mc empty">выбери<br>родителя</div>`;
   const full = activeCount() >= COLLECTION_CAP;
-  const can = a && b && S.coins >= breedCost() && !full;
-  let note = `Потомок берёт по одному гену от каждого родителя. Шанс мутации 8%. Каждое новое поколение даёт +8% к силе (до 5-го).`;
-  if (full) note = `Мест нет: в коллекции ${COLLECTION_CAP} мутантов. Отпусти кого-нибудь или убери в архив на вкладке «Мутанты».`;
-  else if (a && b) note = `Гены для выбора: ${[...new Set([...a.g, ...b.g])].map(geneChip).join(' ')}`;
-  const grid = active().map(m => miniCard(m, { act: 'pick', sel: picks.includes(m.id) })).join('');
+  const own = t ? (S.tokens[t] || 0) : 0;
+  const mid = `<div class="starwrap"><button class="starbtn${t ? ' on t' + t : ''}" data-act="star-open" aria-label="Выбрать звезду" title="Звезда для слияния">${t ? tierStar(t, 24) : starOutline(22)}</button><span>${t ? 'сменить' : 'звезда'}</span></div>`;
+  let note, action, grid;
+  if (t) {
+    const ready = !!(a && b && a.id !== b.id && mergeOk(a, t) && mergeOk(b, t) && own > 0 && !full);
+    note = `Слияние: нужны 2 мутанта «${TIERS[t - 1].name.toLowerCase()}» или «${T.name.toLowerCase()}» тира не ниже ${T.lvl} уровня и 1 токен (у тебя ×${own}). Родители остаются у тебя, а новый мутант получит +${Math.round(TIER_BONUS * 100 * t)}% к здоровью и атаке и начнёт с ${MERGE_START_LVL}-го уровня.`;
+    if (a && b) note = `Получишь ${tierStar(t, 14)} ${T.name.toLowerCase()} мутанта ${MERGE_START_LVL}-го уровня. Гены достанутся случайно от обоих родителей (шанс мутации 8%): ${[...new Set([...a.g, ...b.g])].map(geneChip).join(' ')}`;
+    if (full) note = `Мест нет: в коллекции ${COLLECTION_CAP} мутантов. Отпусти кого-нибудь или убери в архив на вкладке «Мутанты».`;
+    action = `<button class="btn ${confirmId === 'merge' ? 'danger' : 'primary'} wide" data-act="merge-do" ${ready ? '' : 'disabled'}>${confirmId === 'merge' ? 'Точно слить? Уйдёт 1 токен' : 'Слить · 1 токен'}</button>`
+      + (own < 1 ? `<p class="sub center" style="margin:8px 0 0">Нет токена «${T.name.toLowerCase()}»: нажми на звезду между родителями и купи.</p>` : '');
+    const ok = active().filter(m => mergeOk(m, t)), no = active().filter(m => !mergeOk(m, t));
+    grid = ok.map(m => miniCard(m, { act: 'pick', sel: picks.includes(m.id) })).join('')
+      + no.map(m => miniCard(m, { act: 'merge-low', dim: true, meta: (tierOf(m) === t - 1 || tierOf(m) === t) ? `ур.${m.lvl} из ${T.lvl}` : 'не тот тир' })).join('');
+  } else {
+    const can = a && b && S.coins >= breedCost() && !full;
+    note = `Потомок берёт по одному гену от каждого родителя. Шанс мутации 8%. Каждое новое поколение даёт +8% к силе (до 5-го). Звезда между родителями включает слияние.`;
+    if (full) note = `Мест нет: в коллекции ${COLLECTION_CAP} мутантов. Отпусти кого-нибудь или убери в архив на вкладке «Мутанты».`;
+    else if (a && b) note = `Гены для выбора: ${[...new Set([...a.g, ...b.g])].map(geneChip).join(' ')}`;
+    action = `<button class="btn primary wide" data-act="breed" ${can ? '' : 'disabled'}>Скрестить · <span class="price">${breedCost()}</span></button>`;
+    grid = active().map(m => miniCard(m, { act: 'pick', sel: picks.includes(m.id) })).join('');
+  }
   return `
   <section class="panel">
-    <h2 class="h">Скрещивание</h2>
-    <div class="pair">${slot(a)}<div class="x">×</div>${slot(b)}</div>
+    <h2 class="h">${t ? 'Слияние: ' + tierStar(t, 16) + ' ' + T.name : 'Скрещивание'}</h2>
+    <div class="pair">${slot(a)}${mid}${slot(b)}</div>
     <p class="sub">${note}</p>
-    <button class="btn primary wide" data-act="breed" ${can ? '' : 'disabled'}>Скрестить · <span class="price">${breedCost()}</span></button>
+    ${action}
   </section>
   <section class="panel">
     <h2 class="h">Родители</h2>
     <div class="gridm">${grid}</div>
   </section>
   ${shopHTML(full)}`;
+}
+
+let starSel = 0, mergePick = [], bingoTier = 0;     // starSel: 0 = обычное скрещивание, 1..4 = слияние в этот тир
+const mergeOk = (m, t) => !!m && !m.arc && (tierOf(m) === t - 1 || tierOf(m) === t) && m.lvl >= TIERS[t].lvl;   // родители: тот же тир или на 1 ниже
+const viewLab = () => viewBreed();
+const starOutline = (size = 22) => `<svg class="gi" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.4l2.9 6.1 6.7.9-4.9 4.6 1.2 6.6L12 17.4l-5.9 3.2 1.2-6.6L2.4 9.4l6.7-.9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
+
+function starPickHTML() {
+  const rows = [1, 2, 3, 4].map(k => {
+    const T = TIERS[k], own = S.tokens[k] || 0, on = starSel === k;
+    return `<div class="tk tap${on ? ' on' : ''}" data-act="star-use" data-id="${k}" tabindex="0" role="button" aria-pressed="${on}">${tierStar(k, 30)}
+      <div class="info"><b>${T.name}</b><span>родители «${TIERS[k - 1].name.toLowerCase()}» или «${T.name.toLowerCase()}», от ${T.lvl} ур.</span></div>
+      <div class="own" title="Сколько токенов у тебя">×${own}</div>
+      <button class="btn buy" data-act="star-buy" data-id="${k}" title="Купить токен" ${S.coins >= T.cost ? '' : 'disabled'}><span class="price">${T.cost}</span></button>
+    </div>`;
+  }).join('');
+  return `<h3>Звезда для слияния</h3>
+    <p class="sub">Нажми на звезду, чтобы выбрать её. Кнопка с ценой покупает токен: он тратится на одно слияние.</p>
+    ${rows}
+    <div class="row" style="margin-top:4px"><button class="btn grow" data-act="star-none">Без звезды (скрещивание)</button><button class="btn" data-act="close">Закрыть</button></div>`;
+}
+
+function showMerged(m, fresh = false, mutated = false, bingo = []) {
+  const st = calcStats(m, 1, bonus());
+  openModal(`<div class="center"><span class="new">${fresh ? 'Новый вид' : 'Слияние завершено'}</span></div>
+    <div class="${'t' + tierOf(m)}">${art(m.g[0], m.g[1])}</div>
+    <h3>${tierStar(tierOf(m), 20)} ${speciesName(m.g[0], m.g[1])}</h3>
+    <p class="sub center">${TIERS[tierOf(m)].name} тир: +${Math.round(TIER_BONUS * 100 * tierOf(m))}% к здоровью и атаке. Уровень ${m.lvl}, здоровье ${st.hp}, атака ${Math.round(st.atk)}.</p>
+    <div class="center">${geneChip(m.g[0])} &nbsp; ${geneChip(m.g[1])}</div>
+    ${mutated ? '<p class="sub center" style="margin-top:8px">Случилась мутация: один из генов взялся из ниоткуда.</p>' : ''}
+    ${bingoHTML(bingo)}
+    <button class="btn primary wide" data-act="close">Отлично</button>`);
 }
 
 function shopCard(a, b, full) {
@@ -965,41 +1168,47 @@ function viewMutants() {
 }
 
 function viewBingo() {
+  const t = bingoTier, T = TIERS[t], seen = seenOf(t), claimed = claimedOf(t);
   const total = GENE_IDS.length * GENE_IDS.length;
-  const found = LINES[LINES.length - 1].cells.filter(k => S.seen[k]).length;
+  const found = LINES[LINES.length - 1].cells.filter(k => seen[k]).length;
   const doneKeys = new Set();
-  LINES.filter(l => l.kind !== 'all' && S.claimed[l.id]).forEach(l => l.cells.forEach(k => doneKeys.add(k)));
+  LINES.filter(l => l.kind !== 'all' && claimed[l.id]).forEach(l => l.cells.forEach(k => doneKeys.add(k)));
   const head = GENE_IDS.map(g => `<div class="bh" title="${GENES[g].name}">${geneIcon(g, 18)}</div>`).join('');
   const rows = GENE_IDS.map(a => `<div class="bh" title="${GENES[a].name}">${geneIcon(a, 18)}</div>` +
     GENE_IDS.map(b => {
-      const k = speciesKey(a, b), ok = S.seen[k];
+      const k = speciesKey(a, b), ok = seen[k];
       return `<div class="bc${ok ? '' : ' lock'}${doneKeys.has(k) ? ' won' : ''}">${art(a, b)}<div class="nm">${ok ? speciesName(a, b) : '???'}</div></div>`;
     }).join('')).join('');
   const lines = LINES.map(l => {
-    const p = lineProgress(l, S.seen), got = S.claimed[l.id];
+    const p = lineProgress(l, seen), got = claimed[l.id];
     return { l, p, got };
   });
+  const prize = l => t ? `Награда: ${tierStar(t, 13)} токен «${T.name.toLowerCase()}»` : `${l.desc}. Сразу: +${l.coins} монет.`;
   const list = lines.map(({ l, p, got }) => `<div class="rw${got ? ' done' : ''}">
       <div class="rw-top"><b>${l.title}</b><span class="meta">${got ? 'получено' : p.have + '/' + p.total}</span></div>
-      <div class="sub" style="margin:0">${l.desc}. Сразу: +${l.coins} монет. <span class="meta">${l.label}</span></div>
+      <div class="sub" style="margin:0">${prize(l)} <span class="meta">${l.label}</span></div>
       <div class="xp" style="margin:2px 0 0"><i style="width:${Math.round(p.have / p.total * 100)}%"></i></div>
     </div>`).join('');
   const open = lines.filter(x => !x.got && x.l.kind !== 'all').sort((a, b) => (b.p.have / b.p.total) - (a.p.have / a.p.total))[0];
   let next = '';
   if (open) {
-    const miss = open.l.cells.filter(k => !S.seen[k]).map(k => { const [a, b] = k.split('-'); return speciesName(a, b); });
+    const miss = open.l.cells.filter(k => !seen[k]).map(k => { const [a, b] = k.split('-'); return speciesName(a, b); });
     next = `<p class="sub" style="margin:10px 0 0">Ближе всего: «${open.l.title}». Не хватает: ${miss.join(', ')}.</p>`;
   }
-  const bn = bonus();
+  const seg = `<div class="seg5">${[0, 1, 2, 3, 4].map(k => `<button class="${bingoTier === k ? 'on' : ''}" data-act="bingo-tier" data-id="${k}" aria-label="${TIERS[k].name}">${k ? tierStar(k, 20) : 'Обычное'}</button>`).join('')}</div>`;
+  const intro = t
+    ? `${T.name} бинго: собери мутантов этого тира. Строка это первый ген, столбец это второй. За каждую линию получишь токен «${T.name.toLowerCase()}» (сейчас у тебя ×${S.tokens[t] || 0}). Клетку закрашивает только мутант именно ${T.name.toLowerCase()} тира.`
+    : `Строка это первый ген, столбец это второй. Каждый новый вид закрашивает клетку. Собрал линию: получи монеты и постоянный бонус.`;
   return `
   <section class="panel">
-    <h2 class="h">Бинго видов · ${found}/${total}</h2>
-    <p class="sub">Строка это первый ген, столбец это второй. Каждый новый вид закрашивает клетку. Собрал линию: получи монеты и постоянный бонус.</p>
-    <div class="bingo"><div></div>${head}${rows}</div>
+    ${seg}
+    <h2 class="h">${t ? T.name + ' бинго' : 'Бинго видов'} · ${found}/${total}</h2>
+    <p class="sub">${intro}</p>
+    <div class="bingo"${t ? ` style="--bwc:${T.color}"` : ''}><div></div>${head}${rows}</div>
     ${next}
   </section>
   <section class="panel">
-    <h2 class="h">Награды · ${Object.keys(S.claimed).length}/${LINES.length}</h2>
+    <h2 class="h">Награды · ${Object.keys(claimed).length}/${LINES.length}</h2>
     <div class="rwlist">${list}</div>
   </section>`;
 }
@@ -1022,7 +1231,7 @@ function openModal(html) {
 function closeModal() { $('#modal').hidden = true; $('#modal').innerHTML = ''; confirmId = null; }
 
 function upgradeHTML(m, st) {
-  const nx = calcStats({ g: m.g, lvl: m.lvl + 1, gen: m.gen }, 1, bonus());
+  const nx = calcStats({ g: m.g, lvl: m.lvl + 1, gen: m.gen, tier: m.tier }, 1, bonus());
   const cost = upgradeCost(m.lvl);
   return `<div style="margin-bottom:8px">
     <button class="btn buy wide" data-act="upgrade" data-id="${m.id}" ${S.coins >= cost ? '' : 'disabled'}>Прокачать до ур.${m.lvl + 1} · <span class="price">${cost}</span></button>
@@ -1061,7 +1270,7 @@ function dailyHTML() {
 }
 
 /* ---------- ВЫБОР КОМАНДЫ ПЕРЕД БОЕМ ---------- */
-let tpick = [];
+let tpick = [], tpTrain = false;
 const effOf = (a, b) => BEATS[a.g[0]] === b.g[0] ? 1.25 : (BEATS[b.g[0]] === a.g[0] ? 0.8 : 1);
 const powerOf = m => { const st = calcStats(m, 1, bonus()); return st.hp * st.atk; };
 function tpHint(m) {
@@ -1080,7 +1289,7 @@ const tpTop = fn => active().slice().sort((a, b) => fn(b) - fn(a)).slice(0, 3).m
 function tpSlotsHTML() {
   return [0, 1, 2].map(i => {
     const m = tpick[i] !== undefined ? byId(tpick[i]) : null;
-    return m ? `<div class="tp-cell slot" data-act="tp-slot" data-id="${i}" title="Убрать из команды">${art(m.g[0], m.g[1])}<div class="nm">${geneIcon(m.g[0], 13)} ${speciesName(m.g[0], m.g[1])}</div><div class="meta">ур.${m.lvl}</div></div>`
+    return m ? `<div class="tp-cell slot" data-act="tp-slot" data-id="${i}" title="Убрать из команды">${art(m.g[0], m.g[1])}<div class="nm">${geneIcon(m.g[0], 13)} ${speciesName(m.g[0], m.g[1])}</div><div class="meta">${tierStar(m.tier, 11)} ур.${m.lvl}</div></div>`
              : '<div class="tp-cell empty">пусто</div>';
   }).join('');
 }
@@ -1088,28 +1297,28 @@ function teamPickHTML() {
   const foes = S.foe.units.map(f => `<div class="tp-cell">${art(f.g[0], f.g[1])}<div class="nm">${geneIcon(f.g[0], 13)} ${speciesName(f.g[0], f.g[1])}</div><div class="meta">ур.${f.lvl}</div></div>`).join('');
   const ms = active().slice().sort((a, b) => powerOf(b) - powerOf(a));
   const cards = ms.map(m => {
-    const st = calcStats(m, 1, bonus()), h = tpHint(m);
+    const st = calcStats(m, 1, bonus()), h = tpTrain ? { up: 0, dn: 0 } : tpHint(m);
     return `<div class="mc${tpick.includes(m.id) ? ' sel' : ''}" data-act="tp-toggle" data-id="${m.id}" tabindex="0" role="button">
       <span class="badge tpn">${tpick.indexOf(m.id) + 1}</span>
       ${art(m.g[0], m.g[1])}
       <div class="nm">${geneIcon(m.g[0], 13)} ${speciesName(m.g[0], m.g[1])}</div>
-      <div class="meta">ур.${m.lvl}</div>
+      <div class="meta">${tierStar(m.tier, 11)} ур.${m.lvl}</div>
       <div class="tp-st">${st.hp} / ${Math.round(st.atk)}</div>
       <div class="tp-adv"><span class="tp-up">${h.up ? '▲' + h.up : ''}</span> <span class="tp-dn">${h.dn ? '▼' + h.dn : ''}</span></div>
     </div>`;
   }).join('');
   return `<h3 style="margin-top:0">Выбор команды</h3>
-    <p class="tp-h" style="margin-top:0">Против кого бой (стадия ${S.stage}${S.foe.boss ? ', босс' : ''}):</p>
-    <div class="tp-row">${foes}</div>
+    ${tpTrain ? `<p class="tp-h" style="margin-top:0">Полигон: враги ${1}–${TRAIN_FOE_MAX_LVL} уровня, случайные.</p>` : `<p class="tp-h" style="margin-top:0">Против кого бой (стадия ${S.stage}${S.foe.boss ? ', босс' : ''}):</p>
+    <div class="tp-row">${foes}</div>`}
     <p class="tp-h" style="margin-top:0">Твоя команда (нажми, чтобы убрать):</p>
     <div class="tp-row" id="tpSlots">${tpSlotsHTML()}</div>
     <div class="row">
-      <button class="btn primary grow" data-act="tp-counter">Подобрать против врагов</button>
+      ${tpTrain ? '' : '<button class="btn primary grow" data-act="tp-counter">Подобрать против врагов</button>'}
       <button class="btn" data-act="tp-power">Сильнейшие</button>
     </div>
     <p class="tp-h">Нажми на мутанта, чтобы добавить его в команду. Под именем: здоровье / атака. <span class="tp-up">▲</span> сколько врагов он бьёт сильнее, <span class="tp-dn">▼</span> сколько врагов бьют его сильнее.</p>
     <div class="gridm tp-grid" style="margin-top:8px">${cards}</div>
-    <div class="tp-bar"><button class="btn" data-act="tp-apply" id="tpApply">Готово</button><button class="btn primary" data-act="tp-fight" id="tpFight">В бой</button></div>`;
+    <div class="tp-bar"><button class="btn" data-act="tp-apply" id="tpApply">Готово</button><button class="btn primary" data-act="tp-fight" id="tpFight">${tpTrain ? 'Тренировка' : 'В бой'}</button></div>`;
 }
 function tpUpdate() {                                   // обновляем окно на месте, без сброса прокрутки
   const sh = $('#modal .sheet'); if (!sh) return;
@@ -1130,6 +1339,7 @@ function detailHTML(m) {
   return `${art(m.g[0], m.g[1])}
     <h3>${speciesName(m.g[0], m.g[1])}</h3>
     <div class="center">${geneChip(m.g[0])} &nbsp; ${geneChip(m.g[1])}</div>
+    ${tierOf(m) ? `<div class="center meta" style="margin-top:6px">${tierStar(tierOf(m), 14)} ${TIERS[tierOf(m)].name} тир · +${Math.round(TIER_BONUS * 100 * tierOf(m))}% к здоровью и атаке</div>` : ''}
     <div class="stats"><div><b>${st.hp}</b><span>здоровье</span></div><div><b>${Math.round(st.atk)}</b><span>атака</span></div><div><b>${st.spd}</b><span>скорость</span></div></div>
     <div class="meta">Уровень ${m.lvl} · опыт ${m.xp}/${need} · поколение ${m.gen}</div>
     <div class="xp"><i style="width:${pct}%"></i></div>
@@ -1151,15 +1361,15 @@ function unitHTML(u) {
     ${art(u.g[0], u.g[1])}
     <div class="bar"><i></i></div>
     <div class="stat-row"><span class="hpn"></span><span class="st"></span></div>
-    <div class="nm">${geneIcon(u.g[0], 13)} ${u.name}</div>
+    <div class="nm">${tierStar(u.tier, 13)}${geneIcon(u.g[0], 13)} ${u.name}</div>
   </div>`;
 }
 
-function startBattle() {
+function startBattle(train = false) {
   const team = S.team.map(byId).filter(Boolean);
   if (!team.length) return;
-  const B = newBattle(team, S.foe, bonus());
-  Bt = { B, cur: null, mode: 'attack', auto: false, busy: false, over: false, timer: null, stage: S.stage };
+  const B = newBattle(team, train ? genTrainSpec() : S.foe, bonus());
+  Bt = { B, cur: null, mode: 'attack', auto: false, busy: false, over: false, timer: null, stage: S.stage, train };
   const me = Bt;
   $('#view').innerHTML = `<div class="battle">
     ${chartBtn()}
@@ -1197,7 +1407,7 @@ function updateBattle() {
     el.classList.toggle('cur', !!cur && cur.id === u.id && !Bt.over);
     el.classList.toggle('tgt', !!needT && u.side === 'f' && va);
   });
-  $('#rd').textContent = 'Стадия ' + Bt.stage + ' · Раунд ' + Math.max(1, B.round);
+  $('#rd').textContent = (Bt.train ? 'Полигон' : 'Стадия ' + Bt.stage) + ' · Раунд ' + Math.max(1, B.round);
   const ctrl = $('#ctrl'), hint = $('#hint');
   const dock = document.querySelector('.dock'); if (dock) dock.classList.toggle('off', !!Bt.over);
   if (Bt.over) { ctrl.innerHTML = ''; hint.textContent = ''; return; }
@@ -1512,6 +1722,7 @@ function finishBattle() {
   const me = Bt; me.over = true;
   { const dk = document.querySelector('.dock'); if (dk) dk.classList.add('off'); }
   const won = outcome(me.B) === 'win';
+  if (me.train) { finishTraining(me, won); return; }
   const rw = rewards(S.stage, won);
   rw.coins = Math.round(rw.coins * bonus().coinMult);
   S.coins += rw.coins;
@@ -1536,6 +1747,32 @@ function finishBattle() {
     <button class="btn primary wide" data-act="after-battle">Продолжить</button>`);
 }
 
+function finishTraining(me, won) {
+  const streakBefore = S.trainStreak || 0;
+  const mult = won ? trainMult(streakBefore) : 1;
+  const base = won ? Math.round(TRAIN_XP_WIN * mult) : TRAIN_XP_LOSE;
+  S.trainStreak = won ? streakBefore + 1 : 0;
+  const lines = [];
+  S.team.map(byId).forEach((m, i) => {
+    if (!m) return;
+    const name = speciesName(m.g[0], m.g[1]);
+    const u = me.B.allies[i];
+    const gain = Math.round(base * (u && u.alive ? 1 : 0.6));
+    const up = addXp(m, gain).length > 0;
+    lines.push(`<li>${name}: <b>+${gain}</b> опыта${up ? ` · уровень <b>${m.lvl}</b>` : ''}</li>`);
+  });
+  save();
+  const streakLine = won
+    ? `Серия побед: <b>${S.trainStreak}</b>${mult > 1 ? ` · опыт ×${fmtMult(mult)}` : ''}. Следующая победа даст ×${fmtMult(trainMult(S.trainStreak))}.`
+    : (streakBefore ? `Серия из ${streakBefore} побед прервалась.` : 'Победи, чтобы начать серию.');
+  openModal(`<div class="center"><span class="new">${won ? 'Тренировка пройдена' : 'Тренировка не удалась'}</span></div>
+    <h3>Полигон</h3>
+    <p class="sub center">${streakLine}</p>
+    <ul class="list">${lines.join('')}</ul>
+    <p class="sub center" style="margin:0 0 10px">Монет за тренировку нет, стадия не меняется.</p>
+    <button class="btn primary wide" data-act="after-battle">Продолжить</button>`);
+}
+
 function leaveBattle() {
   if (Bt) clearTimeout(Bt.timer);
   Bt = null; closeModal(); render();
@@ -1554,7 +1791,7 @@ function newMutant(g, gen) {
 function bingoHTML(lines) {
   if (!lines.length) return '';
   return `<div class="bingo-note"><span class="new">Бинго!</span>
-    <ul class="list" style="margin:8px 0 0">${lines.map(l => `<li><b>${l.title}</b>: ${l.desc}. Монеты: <b>+${l.coins}</b></li>`).join('')}</ul></div>`;
+    <ul class="list" style="margin:8px 0 0">${lines.map(l => l.tier ? `<li>${tierStar(l.tier, 14)} <b>${TIERS[l.tier].name}: ${l.title}</b>. Награда: токен «${TIERS[l.tier].name.toLowerCase()}» ×1</li>` : `<li><b>${l.title}</b>: ${l.desc}. Монеты: <b>+${l.coins}</b></li>`).join('')}</ul></div>`;
 }
 
 function showNewborn(m, fresh, mutated, bingo = []) {
@@ -1570,11 +1807,38 @@ function showNewborn(m, fresh, mutated, bingo = []) {
 function act_(a, d) {
   const id = d.id ? (isNaN(+d.id) ? d.id : +d.id) : null;
   switch (a) {
-    case 'tab': tab = d.tab; picks = []; if (tab === 'top') LB.status = 'loading'; render(); window.scrollTo(0, 0); if (tab === 'top') loadTop(); break;
+    case 'tab': tab = d.tab; picks = []; mergePick = []; starSel = 0; confirmId = null; if (tab === 'top') LB.status = 'loading'; render(); window.scrollTo(0, 0); if (tab === 'top') loadTop(); break;
     case 'refresh-top': LB.status = 'loading'; render(); loadTop(); break;
     case 'chart': openModal(chartHTML()); break;
+    case 'bingo-tier': bingoTier = id; render(); break;
+    case 'star-open': openModal(starPickHTML()); break;
+    case 'star-none': starSel = 0; confirmId = null; closeModal(); render(); break;
+    case 'star-buy': {
+      const T = TIERS[id]; if (!T || !T.cost || S.coins < T.cost) break;
+      S.coins -= T.cost; S.tokens[id] = (S.tokens[id] || 0) + 1;
+      save(); render(); openModal(starPickHTML()); break;
+    }
+    case 'star-use': {
+      if (!TIERS[id] || !TIERS[id].cost) break;
+      starSel = id; confirmId = null; picks = picks.filter(i => mergeOk(byId(i), id));
+      closeModal(); render(); break;
+    }
+    case 'merge-do': {
+      const t = starSel, a = byId(picks[0]), b = byId(picks[1]);
+      if (!t || !a || !b || a.id === b.id || !mergeOk(a, t) || !mergeOk(b, t) || (S.tokens[t] || 0) < 1 || activeCount() >= COLLECTION_CAP) break;
+      if (confirmId !== 'merge') { confirmId = 'merge'; render(); break; }       // второе нажатие подтверждает
+      confirmId = null;
+      const r = breedGenes(a, b);        // гены случайно от обоих родителей, как при скрещивании
+      const nm = { id: S.nextId++, g: r.g, lvl: MERGE_START_LVL, xp: 0, gen: Math.max(a.gen, b.gen), tier: t };
+      S.mutants.push(nm);                // родители остаются
+      S.tokens[t] -= 1;
+      const key = speciesKey(nm.g[0], nm.g[1]), fresh = !S.seenT[t][key]; S.seenT[t][key] = 1; S.seen[key] = 1;
+      const bingo = checkBingo(S);
+      picks = [];
+      save(); render(); showMerged(nm, fresh, r.mutated, bingo); break;
+    }
     case 'goto-mutants': tab = 'mutants'; render(); break;
-    case 'team-pick': if (Bt) break; tpick = S.team.filter(i => byId(i) && !byId(i).arc); openModal(teamPickHTML()); tpUpdate(); break;
+    case 'team-pick': if (Bt) break; tpTrain = false; tpick = S.team.filter(i => byId(i) && !byId(i).arc); openModal(teamPickHTML()); tpUpdate(); break;
     case 'tp-toggle': {
       const i = tpick.indexOf(id);
       if (i >= 0) tpick.splice(i, 1);
@@ -1586,8 +1850,11 @@ function act_(a, d) {
     case 'tp-counter': tpick = tpTop(tpScore); tpUpdate(); break;
     case 'tp-power': tpick = tpTop(powerOf); tpUpdate(); break;
     case 'tp-apply': if (!tpick.length) break; S.team = tpick.slice(); save(); closeModal(); render(); break;
-    case 'tp-fight': if (!tpick.length) break; S.team = tpick.slice(); save(); closeModal(); startBattle(); break;
+    case 'tp-fight': if (!tpick.length) break; S.team = tpick.slice(); save(); closeModal(); startBattle(tpTrain); break;
     case 'fight': startBattle(); break;
+    case 'train': startBattle(true); break;
+    case 'arena-sub': arenaSub = id; render(); break;
+    case 'team-pick-train': if (Bt) break; tpTrain = true; tpick = S.team.filter(i => byId(i) && !byId(i).arc); openModal(teamPickHTML()); tpUpdate(); break;
     case 'open': { const m = byId(id); if (m) openModal(detailHTML(m)); break; }
     case 'close': closeModal(); render(); break;
     case 'team': {
@@ -1672,6 +1939,7 @@ function act_(a, d) {
       S.coins += RELEASE_REFUND; save(); closeModal(); render(); break;
     }
     case 'pick': {
+      if (starSel && !picks.includes(id) && !mergeOk(byId(id), starSel)) break;
       const i = picks.indexOf(id);
       if (i >= 0) picks.splice(i, 1); else { picks.push(id); if (picks.length > 2) picks.shift(); }
       render(); break;
@@ -1718,7 +1986,7 @@ function act_(a, d) {
         const c = aiChoose(Bt.B, Bt.cur); doAct(Bt.cur, c.kind, c.target);
       } else updateBattle();
       break;
-    case 'retreat': leaveBattle(); break;
+    case 'retreat': if (Bt && Bt.train && !Bt.over && S.trainStreak) { S.trainStreak = 0; save(); } leaveBattle(); break;
     case 'after-battle': leaveBattle(); break;
   }
 }
@@ -1736,7 +2004,8 @@ document.addEventListener('keydown', e => {
 $('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && !(Bt && Bt.over)) { closeModal(); render(); } });
 
 /* ---------- TELEGRAM И РЕЙТИНГ ---------- */
-const API = 'https://arena-api.dan8lggflowersyt.workers.dev';
+// Старый сервер рейтинга (arena-api) верил числам из игры, через него и накручивали стадии. Больше не используется:
+// и рейтинг, и рекорд берутся только из проверенных сохранений на сервере SAVE_API (см. worker.js).
 const TG = window.Telegram && window.Telegram.WebApp;
 const TG_DATA = TG && TG.initData ? TG.initData : '';
 try {
@@ -1757,7 +2026,7 @@ var CS = (TG && TG.CloudStorage && TG.isVersionAtLeast && TG.isVersionAtLeast('6
 var csGet = ks => new Promise(res => CS.getItems(ks, (e, v) => res(e ? null : v)));
 
 const hasProgress = o => !!(o.ts || o.wins || o.losses || o.stage > 1 || (o.mutants && o.mutants.length !== 3));
-const score = o => (o.wins || 0) * 10 + (o.best || o.stage || 1) * 8 + (o.mutants || []).reduce((a, m) => a + (m.lvl || 1), 0) + Object.keys(o.claimed || {}).length * 5;
+const score = o => (o.wins || 0) * 10 + (o.best || o.stage || 1) * 8 + (o.mutants || []).reduce((a, m) => a + (m.lvl || 1) + (m.tier || 0) * 40, 0) + Object.keys(o.claimed || {}).length * 5;
 
 const SYNC_KEY = KEY + ':sync';
 var SM = null, saveSeq = 0, pushTimer = null, pushing = false, syncErr = '';
@@ -1784,6 +2053,10 @@ async function pushNow() {
     syncErr = '';
     if (res.ok) { SM.rev = res.rev; SM.force = false; if (seq === saveSeq) SM.dirty = false; smSave(); }
     else if (res.conflict) { pushing = false; await resolve(res); return; }
+    else if (res.rejected) {                                   // сервер счёл сохранение нечестным или слишком быстрым: ждём, не долбим его
+      syncErr = res.reason === 'banned' ? 'аккаунт заблокирован' : res.reason === 'wait' ? '' : 'сохранение отклонено (' + res.reason + ')';
+      SM.dirty = true; smSave(); pushing = false; schedulePush(Math.max(5000, res.retry || 300000)); return;
+    }
   } catch (e) {
     syncErr = e.status ? 'ошибка ' + e.status : 'нет связи';
     SM.dirty = true; smSave(); pushing = false; schedulePush(retryIn(e)); return;
@@ -1887,20 +2160,16 @@ function legacySave() {
 async function submitScore() {
   if (!TG_DATA) return;   // вне Telegram рекорд отправить нельзя
   try {
-    const r = await fetch(API + '/score', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ initData: TG_DATA, best: Math.max(S.best || 1, S.stage) })
-    });
-    if (!r.ok) return;
-    const d = await r.json();
+    // сервер сам берёт рекорд из проверенного сохранения, поэтому сначала отправляем сохранение, а число не передаём
+    if (SM && SM.dirty && !pushing) await pushNow();
+    const d = await api('/score', {});
     if (d && d.ok) { LB.mine = { best: d.best, rank: d.rank }; if (tab === 'top' && !Bt) render(); }
   } catch (e) { /* нет связи: рекорд уйдёт при следующей победе */ }
 }
 
 async function loadTop() {
   try {
-    const r = await fetch(API + '/top');
+    const r = await fetch(SAVE_API + '/top');
     if (!r.ok) throw new Error('bad status');
     const d = await r.json();
     LB.top = Array.isArray(d.top) ? d.top : [];
@@ -1970,7 +2239,7 @@ function viewTop() {
 
 syncLoad();
 refSync(true);
-setInterval(() => { if (tab === 'arena' && !Bt && $('#modal').hidden) updateLab(); }, 20000);
+setInterval(() => { if (tab === 'arena' && arenaSub === 'main' && !Bt && $('#modal').hidden) updateLab(); }, 20000);
 render();
 submitScore();
 if (pendingBingo.length) {
