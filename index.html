@@ -553,15 +553,19 @@ const tierOf = m => (m && m.tier) || 0;
 const BREED_COST = 30, SAMPLE_COST = 40, HYBRID_COST = 90, RELEASE_REFUND = 8, COLLECTION_CAP = 12;
 const xpNeed = l => 18 + 8 * l;
 /* ---------- ТРЕНИРОВОЧНЫЙ ПОЛИГОН ---------- */
-const TRAIN_FOE_MAX_LVL = 4;     // враги полигона: от 1 до этого уровня
-const TRAIN_XP_WIN = 25, TRAIN_XP_LOSE = 8;
+const TRAIN_XP_BASE = 10, TRAIN_XP_PCT = 0.11, TRAIN_LOSE_SHARE = 0.3;   // победа: 10 + 11% от опыта до следующего уровня (по среднему уровню команды); поражение: 30% от награды за победу
+const trainAvgLvl = team => { const a = (team || []).filter(Boolean); return a.length ? Math.max(1, Math.round(a.reduce((t, m) => t + m.lvl, 0) / a.length)) : 1; };
+const trainWinXp = avg => Math.round(TRAIN_XP_BASE + TRAIN_XP_PCT * xpNeed(avg));
+const trainLoseXp = avg => Math.round(trainWinXp(avg) * TRAIN_LOSE_SHARE);
+const trainFoeRange = avg => [Math.max(1, avg - 2), Math.max(1, avg - 1)];   // враги полигона: на 1–2 уровня слабее команды, минимум 1
 const TRAIN_STREAK_STEP = 0.1, TRAIN_STREAK_CAP = 10;      // каждая победа подряд: +10% к опыту, максимум ×2 (на 10-й победе подряд и дальше)
 const trainMult = n => 1 + TRAIN_STREAK_STEP * Math.min(n || 0, TRAIN_STREAK_CAP);   // n = сколько побед подряд уже есть
 const fmtMult = x => String(Math.round(x * 10) / 10).replace('.', ',');
-function genTrainSpec() {
+function genTrainSpec(team) {
+  const [foeLo, foeHi] = trainFoeRange(trainAvgLvl(team));
   const units = [0, 1, 2].map(() => ({
     g: [rndGene(), rndGene()],
-    lvl: 1 + Math.floor(Math.random() * TRAIN_FOE_MAX_LVL),
+    lvl: foeLo + Math.floor(Math.random() * (foeHi - foeLo + 1)),
     gen: 0
   }));
   return { stage: 0, boss: false, train: true, units };
@@ -1194,7 +1198,7 @@ function viewArena() {
 function streakHTML() {
   const n = S.trainStreak || 0, cur = Math.min(n, TRAIN_STREAK_CAP);
   const pips = Array.from({ length: TRAIN_STREAK_CAP }, (_, i) => `<i class="${i < cur ? 'on' : ''}"></i>`).join('');
-  const next = trainMult(n), xp = Math.round(TRAIN_XP_WIN * next);
+  const next = trainMult(n), xp = Math.round(trainWinXp(trainAvgLvl(S.team.map(byId))) * next);
   return `<div class="streak">
     <div class="streak-top"><b>Серия побед: ${n}</b><span>следующая победа ×${fmtMult(next)} · +${xp} опыта${n >= TRAIN_STREAK_CAP ? ' (максимум)' : ''}</span></div>
     <div class="pips" aria-hidden="true">${pips}</div>
@@ -1208,10 +1212,10 @@ function viewTrain() {
   return `
   <section class="panel">
     <h2 class="h">Тренировочный полигон</h2>
-    <p class="sub">Спокойное место для слабых мутантов: враги совсем маленькие, монет нет, стадия не меняется. Тренируйся сколько хочешь.</p>
+    <p class="sub">Спокойное место для тренировки: враги на 1–2 уровня слабее твоей команды, монет нет, стадия не меняется. Награда растёт вместе с уровнем команды.</p>
     <div class="tstats">
-      <div><b>1–${TRAIN_FOE_MAX_LVL}</b><span>уровень врагов</span></div>
-      <div><b>+${TRAIN_XP_WIN}</b><span>опыта за победу</span></div>
+      <div><b>${trainFoeRange(trainAvgLvl(team)).filter((v, i, a) => a.indexOf(v) === i).join('–')}</b><span>уровень врагов</span></div>
+      <div><b>+${trainWinXp(trainAvgLvl(team))}</b><span>опыта за победу</span></div>
       <div><b>0</b><span>монет за бой</span></div>
     </div>
     ${streakHTML()}
@@ -1525,7 +1529,7 @@ function teamPickHTML() {
     </div>`;
   }).join('');
   return `<h3 style="margin-top:0">Выбор команды</h3>
-    ${tpTrain ? `<p class="tp-h" style="margin-top:0">Полигон: враги ${1}–${TRAIN_FOE_MAX_LVL} уровня, случайные.</p>` : `<p class="tp-h" style="margin-top:0">Против кого бой (стадия ${S.stage}${S.foe.boss ? ', босс' : ''}):</p>
+    ${tpTrain ? `<p class="tp-h" style="margin-top:0">Полигон: враги на 1–2 уровня слабее твоей команды, случайные.</p>` : `<p class="tp-h" style="margin-top:0">Против кого бой (стадия ${S.stage}${S.foe.boss ? ', босс' : ''}):</p>
     <div class="tp-row">${foes}</div>`}
     <p class="tp-h" style="margin-top:0">Твоя команда (нажми, чтобы убрать):</p>
     <div class="tp-row" id="tpSlots">${tpSlotsHTML()}</div>
@@ -1585,7 +1589,7 @@ function unitHTML(u) {
 function startBattle(train = false) {
   const team = S.team.map(byId).filter(Boolean);
   if (!team.length) return;
-  const B = newBattle(team, train ? genTrainSpec() : S.foe, bonus());
+  const B = newBattle(team, train ? genTrainSpec(team) : S.foe, bonus());
   Bt = { B, cur: null, mode: 'attack', auto: false, busy: false, over: false, timer: null, stage: S.stage, train };
   const me = Bt;
   $('#view').innerHTML = `<div class="battle">
@@ -1966,8 +1970,9 @@ function finishBattle() {
 
 function finishTraining(me, won) {
   const streakBefore = S.trainStreak || 0;
+  const avg = trainAvgLvl(S.team.map(byId));
   const mult = won ? trainMult(streakBefore) : 1;
-  const base = won ? Math.round(TRAIN_XP_WIN * mult) : TRAIN_XP_LOSE;
+  const base = won ? Math.round(trainWinXp(avg) * mult) : trainLoseXp(avg);
   S.trainStreak = won ? streakBefore + 1 : 0;
   const lines = [];
   S.team.map(byId).forEach((m, i) => {
