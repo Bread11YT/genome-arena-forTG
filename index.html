@@ -365,6 +365,10 @@ p{line-height:1.45}
 .lb li,.dqs li,.rw,.tk,.streak{border-radius:12px}
 .seg button,.seg5 button{border-radius:12px;font-size:14px}
 .cx{font-size:13px}
+.atabs{grid-template-columns:repeat(4,1fr)}
+.atabs button{gap:4px;padding:9px 2px;font-size:12.5px}
+.gbar{height:12px;background:var(--pit);border-radius:6px;overflow:hidden;margin:10px 0 4px}
+.gbar i{display:block;height:100%;background:linear-gradient(90deg,var(--fang),var(--coin));transition:width .4s}
 .sb{background:rgba(255,255,255,.08)}
 </style>
 <style id="theme-light" media="not all">
@@ -562,7 +566,7 @@ function genFoeSpec(stage) {
   }));
   return { stage, boss, units };
 }
-const foeBoost = spec => spec.duel ? 1 : (spec.boss ? 1.25 : 1) * (spec.stage < 3 ? 0.85 : 1) * (1 + 0.03 * Math.max(0, spec.stage - 18));
+const foeBoost = spec => spec.duel || spec.giant ? 1 : (spec.boss ? 1.25 : 1) * (spec.stage < 3 ? 0.85 : 1) * (1 + 0.03 * Math.max(0, spec.stage - 18));
 
 /* ---------- Бой ---------- */
 function makeUnit(m, side, idx, boost = 1, tag = '', bonus = null) {
@@ -587,6 +591,7 @@ const alive = arr => arr.filter(u => u.alive);
 function outcome(B) {
   if (!alive(B.foes).length) return 'win';
   if (!alive(B.allies).length) return 'lose';
+  if (B.giant && B.round > GIANT_ROUNDS) return 'win';   // бой с Гигантом длится фиксированное число раундов
   if (B.round > 40) return 'lose';
   return null;
 }
@@ -1114,10 +1119,203 @@ function updateLab() {
   const b = $('#labClaim'); if (b) { if (cur < 1) b.setAttribute('disabled', ''); else b.removeAttribute('disabled'); }
 }
 
+/* ---------- СОБЫТИЕ «СТАЯ ПРОТИВ ГИГАНТА» ---------- */
+// Урон по Гиганту считает сервер: игра присылает итог боя, а сервер ограничивает его силой команды из проверенного сохранения.
+const GIANT_ROUNDS = 12, PACK_MAX = 5, PACK_DAILY = 3, PACK_BONUS = 0.1;
+const PACK_STEPS = [
+  { at: 0.25, txt: '200 монет' },
+  { at: 0.5,  txt: 'бронзовый токен' },
+  { at: 0.75, txt: 'серебряный токен' },
+  { at: 1,    txt: 'золотой токен и трофейный мутант' }
+];
+const PK = { ok: false, err: '', ev: null, pack: null, top: [], joinId: null, joinMsg: '', busy: false, sync: false, hit: null };
+const PACK_WHY = {
+  already: 'Ты уже состоишь в Стае.', closed: 'Событие закончилось.', not_started: 'Событие ещё не началось.',
+  no_save: 'Прогресс ещё не дошёл до сервера. Подожди минуту и попробуй снова.', banned: 'Недоступно для этого аккаунта.',
+  full: 'В этой Стае уже нет мест.', no_pack: 'Такой Стаи нет.', defeated: 'Гигант уже побеждён: забери награды.',
+  limit: 'Ты уже нанёс Гиганту максимум урона одного игрока. Остальное за друзьями.', busy: 'Предыдущий бой ещё не засчитан. Подожди пару минут.', no_tries: 'Попытки на сегодня закончились.',
+  no_fight: 'Этот бой уже засчитан или устарел.', too_fast: 'Бой закончился слишком быстро, результат не принят.', bad_dmg: 'Результат боя не принят.'
+};
+const packLink = () => (PK.pack && TGU) ? BOT_LINK + '?startapp=pack_' + PK.pack.id : '';
+const fmtN = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const fmtLeft = ms => { const h = Math.max(0, Math.floor(ms / 3600000)), d = Math.floor(h / 24); return d ? d + ' д ' + (h % 24) + ' ч' : h ? h + ' ч ' + Math.floor(ms % 3600000 / 60000) + ' мин' : Math.max(1, Math.floor(ms / 60000)) + ' мин'; };
+const weakOf = g => GENE_IDS.find(x => BEATS[x] === g);
+function pendText(pd) {
+  const a = [];
+  if (pd.coins) a.push('+' + pd.coins + ' монет');
+  [1, 2, 3, 4].forEach(t => { if (pd.tokens && pd.tokens[t]) a.push('токен «' + TIERS[t].name.toLowerCase() + '» ×' + pd.tokens[t]); });
+  if (pd.trophy) a.push('трофейный мутант');
+  return a.join(', ');
+}
+function applyPack(r) { PK.ok = true; PK.err = ''; PK.ev = r.ev; PK.pack = r.pack; PK.top = r.top || []; }
+
+async function packSync() {
+  if (!canSync || PK.sync) return;
+  PK.sync = true;
+  try {
+    if (PK.joinId) {
+      const id = PK.joinId;
+      try { if (SM && !pushing) await pushNow(); } catch (e) {}      // сервер должен видеть сохранение игрока до вступления
+      const r = await api('/pack', { action: 'join', id });
+      PK.joinId = null;
+      PK.joinMsg = r.ok ? 'Ты вступил в Стаю друга. После твоего первого боя вы оба получите бронзовый токен.' : (PACK_WHY[r.reason] || 'Не удалось вступить в Стаю.');
+    }
+    applyPack(await api('/pack', { action: 'state' }));
+  } catch (e) { PK.err = e.status ? 'ошибка ' + e.status : 'нет связи'; }
+  PK.sync = false;
+  if (tab === 'arena' && arenaSub === 'pack' && !Bt && $('#modal').hidden) render();
+}
+
+async function packCreate() {
+  if (PK.busy) return;
+  PK.busy = true;
+  try {
+    if (SM && !pushing) await pushNow();
+    const r = await api('/pack', { action: 'create' });
+    if (!r.ok) notify(PACK_WHY[r.reason] || 'Не удалось создать Стаю.');
+    PK.joinMsg = '';
+    applyPack(await api('/pack', { action: 'state' }));
+  } catch (e) { notify('Нет связи с сервером события.'); }
+  PK.busy = false; render();
+}
+
+function giantSpec() {
+  const g = (PK.ev && PK.ev.gene) || 'bone', max = (PK.ev && PK.ev.hp) || 1;
+  const hp = Math.max(1, max - (PK.pack ? PK.pack.dmg : 0));
+  return { giant: true, stage: 1, boss: false, name: 'Гигант', hp, max, units: [{ g: [g, g], lvl: 50, gen: 0 }] };
+}
+function setupGiant(B, spec) {
+  B.giant = true;
+  const f = B.foes[0], avg = B.allies.reduce((a, u) => a + u.atk, 0) / B.allies.length;
+  f.giant = true; f.name = 'Гигант'; f.tag = 'гигант'; f.tier = 0;
+  f.max = spec.max; f.hp = spec.hp; f.hp0 = spec.hp;
+  f.atk = Math.max(6, Math.round(avg * 1.5)); f.spd = 4.5;
+}
+
+async function packBegin() {
+  if (PK.busy) return;
+  PK.busy = true;
+  try {
+    if (SM && !pushing && SM.dirty) await pushNow();        // чтобы сервер видел актуальную команду
+    const r = await api('/pack', { action: 'begin' });
+    if (!r.ok) { notify(PACK_WHY[r.reason] || 'Бой не начался.'); PK.busy = false; await packSync(); return; }
+    applyPack(r);
+    PK.busy = false;
+    startBattle(false, null, giantSpec());
+    return;
+  } catch (e) { notify('Нет связи с сервером события.'); }
+  PK.busy = false;
+}
+
+async function finishGiant(me) {
+  const f = me.B.foes[0];
+  PK.hit = Math.max(0, Math.round(f.hp0 - f.hp));           // чистый урон: лечение Гиганта вычитается
+  { const dk = document.querySelector('.dock'); if (dk) dk.classList.add('off'); }
+  dq('fight');
+  const xp = trainWinXp(trainAvgLvl(S.team.map(byId)));
+  S.team.map(byId).forEach(m => { if (m) addXp(m, xp); });
+  save();
+  openModal('<h3>Считаем урон…</h3><p class="sub center">Отправляем результат боя на сервер.</p>');
+  await packSendHit();
+}
+
+async function packSendHit() {
+  const dmg = PK.hit;
+  if (dmg === null) return;
+  let r = null;
+  try { r = await api('/pack', { action: 'hit', dmg }); } catch (e) { r = null; }
+  if (r && r.ok) { PK.hit = null; applyPack(r); sfx('win', { vol: .9 }); openModal(giantResultHTML(r)); return; }
+  const dead = !!(r && ['no_fight', 'too_fast', 'closed', 'not_started', 'bad_dmg'].includes(r.reason));
+  if (dead) PK.hit = null;
+  openModal(`<h3>Урон не засчитан</h3><p class="sub center">${esc(r ? (PACK_WHY[r.reason] || 'Сервер не принял результат.') : 'Нет связи с сервером.')}</p>
+    <div class="row">${dead ? '' : '<button class="btn grow" data-act="pack-retry">Ещё раз</button>'}<button class="btn primary grow" data-act="after-battle">Закрыть</button></div>`);
+}
+
+function giantResultHTML(r) {
+  const p = r.pack || {}, left = Math.max(0, r.ev.hp - (p.dmg || 0));
+  const pend = p.pending ? pendText(p.pending) : '';
+  return `<div class="center"><span class="new">Бой с Гигантом</span></div>
+    <h3>${r.credited > 0 ? 'Урон Стае: +' + fmtN(r.credited) : 'Урона нет'}</h3>
+    <p class="sub center">${p.mult > 1 ? 'Бонус Стаи ×' + fmtMult(p.mult) + ' уже учтён. ' : ''}${r.capped ? 'Сервер ограничил урон по силе твоей команды. ' : ''}${left > 0 ? 'Гиганту осталось ' + fmtN(left) + ' HP.' : 'Гигант повержен!'}</p>
+    ${pend ? `<p class="sub center"><b style="color:var(--fg)">Есть награды:</b> ${pend}. Забери их на вкладке «Стая».</p>` : ''}
+    <button class="btn primary wide" data-act="after-battle">Продолжить</button>`;
+}
+
+async function packClaim() {
+  if (PK.busy) return;
+  PK.busy = true;
+  try {
+    const r = await api('/pack', { action: 'claim' });
+    if (r.ok) {
+      const got = { coins: r.coins || 0, tokens: r.tokens || {}, trophy: !!r.trophy };
+      S.coins += got.coins;
+      [1, 2, 3, 4].forEach(t => { if (got.tokens[t]) S.tokens[t] = (S.tokens[t] || 0) + got.tokens[t]; });
+      if (r.trophy) { const n = newMutant([r.trophy, r.trophy], 5); n.m.ev = 1; }
+      save(); applyPack(r); sfx('win', { vol: .9 }); render();
+      openModal(`<div class="center"><span class="new">Награды Стаи</span></div><h3>Получено</h3>
+        <p class="sub center">${esc(pendText(got) || 'Пока нечего забирать.')}</p><button class="btn primary wide" data-act="close">Отлично</button>`);
+    } else notify('Награды уже забраны. Обнови экран.');
+  } catch (e) { notify('Нет связи с сервером события.'); }
+  PK.busy = false;
+}
+
+function viewPack() {
+  const head = '<h2 class="h">Стая против Гиганта</h2>';
+  if (!canSync) return `<section class="panel">${head}<p class="sub" style="margin:0">Событие работает только внутри Telegram: открой игру через бота.</p></section>`;
+  if (!PK.ok) return `<section class="panel">${head}<p class="sub" style="margin:0">${PK.err ? 'Не удалось связаться с сервером: ' + PK.err + '.' : 'Загрузка…'}</p>${PK.err ? '<div style="margin-top:12px"><button class="btn wide" data-act="pack-reload">Повторить</button></div>' : ''}</section>`;
+  const ev = PK.ev, p = PK.pack, now = Date.now();
+  const started = now >= ev.start, ended = now >= ev.end;
+  const when = ended ? 'Событие завершено' : started ? 'Осталось ' + fmtLeft(ev.end - now) : 'Начало через ' + fmtLeft(ev.start - now);
+  const total = p ? p.dmg : 0, pct = Math.min(100, Math.round(total / ev.hp * 100));
+  const tiers = PACK_STEPS.map((s, i) => {
+    const reached = total >= ev.hp * s.at, got = p && (p.claimed & (1 << i));
+    return `<div class="rw${got ? ' done' : ''}"><div class="rw-top"><b>${Math.round(s.at * 100)}% · ${s.txt}</b><span class="meta">${got ? 'получено' : reached ? 'открыто' : fmtN(ev.hp * s.at) + ' урона'}</span></div></div>`;
+  }).join('');
+  const giant = `<section class="panel has-chart">${chartBtn()}
+    ${head}
+    <p class="sub">${when}. Собери Стаю из ${PACK_MAX} игроков и бейте общего Гиганта: урон всех складывается. Каждый друг в Стае даёт всем +${Math.round(PACK_BONUS * 100)}% урона. Один игрок может нанести не больше ${Math.round(ev.share * 100)}% здоровья Гиганта, поэтому без друзей его не победить. Каждый день Гигант меняет ген.</p>
+    <div style="max-width:150px;margin:0 auto">${art(ev.gene, ev.gene)}</div>
+    <p class="sub center" style="margin:8px 0 0">Гигант дня: ${geneChip(ev.gene)} · слабое место: ${geneChip(weakOf(ev.gene))}</p>
+    <div class="gbar"><i style="width:${pct}%"></i></div>
+    <div class="meta center">${fmtN(total)} / ${fmtN(ev.hp)} урона Стаи${p && total >= ev.hp ? ' · побеждён' : ''}</div>
+  </section>`;
+  let mid;
+  if (!p) {
+    mid = `<section class="panel"><h2 class="h">Твоя Стая</h2>
+      ${PK.joinMsg ? `<p class="sub">${esc(PK.joinMsg)}</p>` : ''}
+      <p class="sub">Стаи у тебя пока нет. Создай свою и позови друзей или вступи по ссылке друга. Одному Гиганта не победить: лучшие награды открываются только общими силами.</p>
+      <button class="btn primary wide" data-act="pack-create" ${ended ? 'disabled' : ''}>Создать Стаю</button></section>`;
+  } else {
+    const mem = p.members.map((m, i) => `<li><span class="pos">${i + 1}</span><span class="who">${esc(m.name)}${m.me ? ' · ты' : ''}</span><span class="sc">${fmtN(m.dmg)}</span></li>`).join('');
+    const free = Array.from({ length: Math.max(0, PACK_MAX - p.n) }, () => '<li style="opacity:.5"><span class="pos">+</span><span class="who">место свободно</span></li>').join('');
+    const canFight = started && !ended && p.left > 0 && total < ev.hp;
+    const label = !started ? 'Событие ещё не началось' : ended ? 'Событие закончилось' : total >= ev.hp ? 'Гигант побеждён' : p.left < 1 ? 'Попытки закончились' : 'Сразиться с Гигантом';
+    const pend = p.pending ? pendText(p.pending) : '';
+    mid = `<section class="panel"><h2 class="h">Твоя Стая · ${p.n}/${PACK_MAX}</h2>
+      ${PK.joinMsg ? `<p class="sub">${esc(PK.joinMsg)}</p>` : ''}
+      <p class="sub">Бонус Стаи: урон ×${fmtMult(p.mult)}. Друг, который вступил по твоей ссылке и провёл первый бой, даёт тебе бронзовый токен, а сам получает такой же и бесплатную попытку.</p>
+      <ol class="lb">${mem}${free}</ol>
+      <div class="row" style="margin-top:12px"><button class="btn primary grow" data-act="pack-share" ${p.n >= PACK_MAX ? 'disabled' : ''}>Позвать друга</button><button class="btn" data-act="pack-copy" ${p.n >= PACK_MAX ? 'disabled' : ''}>Ссылка</button></div>
+    </section>
+    <section class="panel"><h2 class="h">Бой с Гигантом</h2>
+      <p class="sub">Твой вклад: <b style="color:var(--fg)">${fmtN(p.mine)}</b> из ${fmtN(p.cap)} возможных. Попыток сейчас: <b style="color:var(--fg)">${p.left}</b> (${PACK_DAILY} в день, обновляются в полночь по Москве). Бой идёт ${GIANT_ROUNDS} раундов, побеждать не нужно: в зачёт идёт то, сколько здоровья ты отнял у Гиганта.</p>
+      ${PK.hit !== null ? `<button class="btn wide" style="margin-bottom:8px" data-act="pack-retry">Отправить результат прошлого боя (${fmtN(PK.hit)})</button>` : ''}
+      <button class="btn primary wide" data-act="pack-fight" ${canFight ? '' : 'disabled'}>${label}</button>
+    </section>
+    ${pend ? `<section class="panel"><h2 class="h">Награды готовы</h2><p class="sub">${pend}</p><button class="btn primary wide" data-act="pack-claim">Забрать</button></section>` : ''}`;
+  }
+  const rewards = `<section class="panel"><h2 class="h">Награды Стаи</h2>
+    <p class="sub">Открываются по общему урону. Получает каждый член Стаи, который нанёс хотя бы один удар.</p><div class="rwlist">${tiers}</div></section>`;
+  const top = PK.top.length ? `<section class="panel"><h2 class="h">Рейтинг Стай</h2>
+    <ol class="lb">${PK.top.map((t, i) => `<li><span class="pos">${i + 1}</span><span class="who">Стая ${esc(t.owner || 'без имени')} · ${t.n}/${PACK_MAX}</span><span class="sc">${fmtN(t.d)}</span></li>`).join('')}</ol></section>` : '';
+  return giant + mid + rewards + top;
+}
+
 let arenaSub = 'main';       // main | train | duel
 const ARENA_TABS = [
   { id: 'main',  name: 'Арена',     icon: '<path d="M4 4l9 9M20 4l-9 9M11 13l-3 3M13 13l3 3M6.5 17.5l-2 2M17.5 17.5l2 2"/>' },
   { id: 'train', name: 'Полигон',   icon: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".9" fill="currentColor"/>' },
+  { id: 'pack',  name: 'Стая',      icon: '<circle cx="8" cy="9" r="2.6"/><circle cx="16.5" cy="9" r="2.6"/><circle cx="12" cy="16" r="2.6"/>' },
   { id: 'duel',  name: 'Дуэль',     icon: '<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3.5 19c.5-3.5 3-5 5.5-5s5 1.5 5.5 5M15 14.5c2.5 0 4.5 1.3 5.5 4.5"/>' },
 ];
 function arenaTabsHTML() {
@@ -1126,7 +1324,7 @@ function arenaTabsHTML() {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${t.icon}</svg><span>${t.name}</span></button>`).join('')}</div>`;
 }
 function viewArena() {
-  return arenaTabsHTML() + (arenaSub === 'train' ? viewTrain() : arenaSub === 'duel' ? viewDuel() : viewArenaMain());
+  return arenaTabsHTML() + (arenaSub === 'train' ? viewTrain() : arenaSub === 'duel' ? viewDuel() : arenaSub === 'pack' ? viewPack() : viewArenaMain());
 }
 
 function streakHTML() {
@@ -1536,7 +1734,7 @@ function teamPickHTML() {
     </div>`;
   }).join('');
   return `<h3 style="margin-top:0">Выбор команды</h3>
-    ${tpTrain ? `<p class="tp-h" style="margin-top:0">Полигон: враги на 1–2 уровня слабее твоей команды, случайные.</p>` : tpDuelSend ? `<p class="tp-h" style="margin-top:0">Дуэль: выбери команду, которую друг увидит в вызове. Против неё он будет сражаться.</p>` : `<p class="tp-h" style="margin-top:0">${tpFoe ? 'Против команды друга ' + esc(tpFoe.name) : `Против кого бой (стадия ${S.stage}${S.foe.boss ? ', босс' : ''})`}:</p>
+    ${tpTrain ? `<p class="tp-h" style="margin-top:0">Полигон: враги на 1–2 уровня слабее твоей команды, случайные.</p>` : tpDuelSend ? `<p class="tp-h" style="margin-top:0">Дуэль: выбери команду, которую друг увидит в вызове. Против неё он будет сражаться.</p>` : `<p class="tp-h" style="margin-top:0">${tpFoe ? (tpFoe.giant ? 'Против Гиганта (осталось ' + fmtN(tpFoe.hp) + ' HP)' : 'Против команды друга ' + esc(tpFoe.name)) : `Против кого бой (стадия ${S.stage}${S.foe.boss ? ', босс' : ''})`}:</p>
     <div class="tp-row">${foes}</div>`}
     <p class="tp-h" style="margin-top:0">Твоя команда (нажми, чтобы убрать):</p>
     <div class="tp-row" id="tpSlots">${tpSlotsHTML()}</div>
@@ -1593,11 +1791,13 @@ function unitHTML(u) {
   </div>`;
 }
 
-function startBattle(train = false, duel = null) {
+function startBattle(train = false, duel = null, giant = null) {
   const team = S.team.map(byId).filter(Boolean);
   if (!team.length) return;
-  const B = newBattle(team, duel || (train ? genTrainSpec(team) : S.foe), bonus(), duel ? duel.bonus : null);
-  Bt = { B, cur: null, mode: 'attack', auto: false, busy: false, over: false, timer: null, stage: S.stage, train, duel: !!duel, duelName: duel ? duel.name : '' };
+  const foeSpec = giant || duel || (train ? genTrainSpec(team) : S.foe);
+  const B = newBattle(team, foeSpec, bonus(), duel ? duel.bonus : null);
+  if (giant) setupGiant(B, giant);
+  Bt = { B, cur: null, mode: 'attack', auto: false, busy: false, over: false, timer: null, stage: S.stage, train, duel: !!duel, duelName: duel ? duel.name : '', giant: !!giant };
   const me = Bt;
   $('#view').innerHTML = `<div class="battle">
     ${chartBtn()}
@@ -1636,7 +1836,7 @@ function updateBattle() {
     el.classList.toggle('cur', !!cur && cur.id === u.id && !Bt.over);
     el.classList.toggle('tgt', !!needT && u.side === 'f' && va);
   });
-  $('#rd').textContent = (Bt.duel ? 'Дуэль' : Bt.train ? 'Полигон' : 'Стадия ' + Bt.stage) + ' · Раунд ' + Math.max(1, B.round);
+  $('#rd').textContent = (Bt.giant ? 'Гигант' : Bt.duel ? 'Дуэль' : Bt.train ? 'Полигон' : 'Стадия ' + Bt.stage) + ' · Раунд ' + (Bt.giant ? Math.min(GIANT_ROUNDS, Math.max(1, B.round)) + '/' + GIANT_ROUNDS : Math.max(1, B.round));
   const ctrl = $('#ctrl'), hint = $('#hint');
   const dock = document.querySelector('.dock'); if (dock) dock.classList.toggle('off', !!Bt.over);
   if (Bt.over) { ctrl.innerHTML = ''; hint.textContent = ''; return; }
@@ -1985,6 +2185,7 @@ function finishBattle() {
   { const dk = document.querySelector('.dock'); if (dk) dk.classList.add('off'); }
   const won = outcome(me.B) === 'win';
   setTimeout(() => sfx(won ? 'win' : 'weak', won ? { vol: 1, pr: 0 } : { vol: .9, rate: .8 }), 250);
+  if (me.giant) { finishGiant(me); return; }
   if (me.duel) { finishDuel(me, won); return; }
   if (me.train) { finishTraining(me, won); return; }
   const rw = rewards(S.stage, won);
@@ -2116,10 +2317,10 @@ function act_(a, d) {
     case 'tp-counter': tpick = tpTop(tpScore); tpUpdate(); break;
     case 'tp-power': tpick = tpTop(powerOf); tpUpdate(); break;
     case 'tp-apply': if (!tpick.length) break; S.team = tpick.slice(); save(); closeModal(); render(); break;
-    case 'tp-fight': if (!tpick.length) break; S.team = tpick.slice(); save(); closeModal(); startBattle(tpTrain, tpFoe); break;
+    case 'tp-fight': if (!tpick.length) break; S.team = tpick.slice(); save(); closeModal(); if (tpFoe && tpFoe.giant) packBegin(); else startBattle(tpTrain, tpFoe); break;
     case 'fight': startBattle(); break;
     case 'train': startBattle(true); break;
-    case 'arena-sub': arenaSub = id; render(); break;
+    case 'arena-sub': arenaSub = id; render(); if (id === 'pack') packSync(); break;
     case 'team-pick-train': if (Bt) break; tpTrain = true; tpDuelSend = false; tpFoe = null; tpick = S.team.filter(i => byId(i) && !byId(i).arc); openModal(teamPickHTML()); tpUpdate(); break;
     case 'open': { const m = byId(id); if (m) openModal(detailHTML(m)); break; }
     case 'close': closeModal(); render(); break;
@@ -2142,6 +2343,25 @@ function act_(a, d) {
     case 'duel-copy': {
       const link = duelLink(); if (!link) break;
       try { navigator.clipboard.writeText(link).then(() => notify('Ссылка на вызов скопирована. Отправь её другу.')).catch(() => notify(link)); } catch (e) { notify(link); }
+      break;
+    }
+    case 'pack-create': packCreate(); break;
+    case 'pack-claim': packClaim(); break;
+    case 'pack-reload': PK.err = ''; PK.ok = false; render(); packSync(); break;
+    case 'pack-retry': openModal('<h3>Отправляем результат…</h3>'); packSendHit(); break;
+    case 'pack-fight':
+      if (Bt || !PK.pack) break;
+      tpTrain = false; tpDuelSend = false; tpFoe = giantSpec();
+      tpick = S.team.filter(i => byId(i) && !byId(i).arc); openModal(teamPickHTML()); tpUpdate(); break;
+    case 'pack-share': {
+      const link = packLink(); if (!link) break;
+      const url = 'https://t.me/share/url?url=' + encodeURIComponent(link) + '&text=' + encodeURIComponent('Вступай в мою Стаю в Геномной арене: вместе победим Гиганта! Каждый друг даёт +10% урона.');
+      if (TG && TG.openTelegramLink) TG.openTelegramLink(url); else window.open(url, '_blank');
+      break;
+    }
+    case 'pack-copy': {
+      const link = packLink(); if (!link) break;
+      try { navigator.clipboard.writeText(link).then(() => notify('Ссылка на Стаю скопирована. Отправь её другу.')).catch(() => notify(link)); } catch (e) { notify(link); }
       break;
     }
     case 'ref-share': {
@@ -2267,7 +2487,7 @@ function act_(a, d) {
         const c = aiChoose(Bt.B, Bt.cur); doAct(Bt.cur, c.kind, c.target);
       } else updateBattle();
       break;
-    case 'retreat': if (Bt && Bt.train && !Bt.over && S.trainStreak) { S.trainStreak = 0; save(); } leaveBattle(); break;
+    case 'retreat': if (Bt && Bt.giant && !Bt.over) { const g = Bt; g.over = true; clearTimeout(g.timer); finishGiant(g); break; } if (Bt && Bt.train && !Bt.over && S.trainStreak) { S.trainStreak = 0; save(); } leaveBattle(); break;
     case 'after-battle': leaveBattle(); break;
   }
 }
@@ -2526,10 +2746,13 @@ function viewTop() {
 try {                                                      // зашёл по ссылке-вызову друга
   const sp = TG && TG.initDataUnsafe && TG.initDataUnsafe.start_param;
   const d = parseDuel(sp);
+  const pm = /^pack_([a-z0-9]{8})$/.exec(sp || '');
+  if (pm) { PK.joinId = pm[1]; tab = 'arena'; arenaSub = 'pack'; }
   if (d) { duelSpec = d; tab = 'arena'; arenaSub = 'duel'; }
 } catch (e) {}
 syncLoad();
 refSync(true);
+packSync();
 setInterval(() => { if (tab === 'arena' && arenaSub === 'main' && !Bt && $('#modal').hidden) updateLab(); }, 20000);
 render();
 submitScore();
