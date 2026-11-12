@@ -2766,4 +2766,397 @@ if (pendingBingo.length) {
 } else if (duelSpec) openDuelInvite();
 </script>
 
+<style>
+/* ---------- ОБУЧЕНИЕ НОВИЧКА ---------- */
+.tut-coach{position:fixed;left:12px;right:12px;margin:0 auto;max-width:536px;z-index:15;background:var(--surface);border:1.5px solid var(--coin);border-radius:16px;padding:10px 14px 10px;box-shadow:0 10px 30px rgba(0,0,0,.38)}
+.tut-coach[hidden]{display:none}
+#modal:not([hidden]) ~ .tut-coach{display:none}
+.tut-bar{height:3px;background:var(--line);border-radius:2px;overflow:hidden;margin-bottom:8px}
+.tut-bar i{display:block;height:100%;background:var(--coin);transition:width .3s}
+.tut-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.tut-top b{font-size:14.5px}
+.tut-top span{font-size:11.5px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tut-coach p{margin:4px 0 0;font-size:13.5px;line-height:1.4}
+.tut-coach p.tut-rw{color:var(--coin);font-weight:700;font-size:12.5px}
+.tut-act{display:flex;align-items:center;gap:8px;margin-top:8px}
+.tut-act .btn{flex:1;min-height:42px}
+.tut-skip{background:none;border:0;color:var(--muted);font-size:12px;padding:8px 6px;text-decoration:underline;margin-left:auto}
+.tut-hl{outline:2.5px solid var(--coin);outline-offset:3px;animation:tutRipple 1.4s ease-out infinite}
+@keyframes tutRipple{0%{box-shadow:0 0 0 0 rgba(244,185,66,.65)}100%{box-shadow:0 0 0 14px rgba(244,185,66,0)}}
+.tut-shake{animation:tutShake .35s}
+@keyframes tutShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+.tut-coach.compact{padding:8px 12px 4px}
+.tut-coach.compact .tut-bar,.tut-coach.compact .tut-rw{display:none}
+.tut-coach.compact .tut-top span{display:none}
+.tut-coach.compact p{margin-top:2px;font-size:13px}
+.tut-coach.compact .tut-act{margin-top:0}
+.tut-coach.compact .tut-skip{padding:4px 6px;font-size:11.5px}
+body.tut-on .app{padding-bottom:320px}
+body.tut-on .battle{padding-bottom:calc(320px + env(safe-area-inset-bottom,0px))}
+.tut-list li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 10px;background:var(--surface2);border:1px solid var(--line);border-radius:10px}
+.tut-list li b{color:var(--coin);font-family:var(--font-mono);white-space:nowrap}
+.tut-list li.got{opacity:.55}
+.tut-list li.got b{color:var(--good)}
+.tut-note{margin:10px 0;padding:10px 12px;background:var(--surface2);border:1px solid var(--coin);border-radius:12px;font-size:13.5px;text-align:center}
+.tut-note b{color:var(--coin)}
+.tut-tips{display:grid;gap:8px;margin:10px 0 14px}
+.tut-tips p{margin:0;font-size:13.5px}
+.tut-tips b{color:var(--fg)}
+.tut-help h4{margin:14px 0 4px;font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+.tut-help p{margin:0;font-size:13.5px;color:var(--muted)}
+.tut-toast{position:fixed;top:calc(env(safe-area-inset-top,0px) + 72px);left:50%;transform:translateX(-50%);z-index:40;background:var(--coin);color:var(--ink);font-weight:700;font-size:14px;padding:8px 16px;border-radius:999px;box-shadow:0 6px 20px rgba(0,0,0,.35);animation:tutToast 2.4s forwards;pointer-events:none;white-space:nowrap}
+@keyframes tutToast{0%{opacity:0;transform:translate(-50%,-10px)}12%,80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-6px)}}
+@media (prefers-reduced-motion:reduce){.tut-hl,.tut-shake,.tut-toast{animation:none}.tut-toast{opacity:1}}
+</style>
+<script>
+/* ---------- ОБУЧЕНИЕ НОВИЧКА: проводник за руку ----------
+   Подключается поверх игры: оборачивает render, startBattle, finishBattle, showNewborn, act_, styleHTML.
+   Награды правятся в REW. Состояние хранится в S.tut = { s: шаг, paid: {…}, done, skipped }. */
+(function () {
+  'use strict';
+
+  const REW = { fight: 50, breed: 50, bingo: 50, finish: 100 };   // монеты за шаги обучения (однократно)
+  const PAID_KEY = KEY + ':tutpaid';                                // отдельная отметка: «сброс» прогресса не даёт получить награды снова
+  const TUT = { hits: 0, usedSp: false, won: false };
+  const $$ = s => Array.from(document.querySelectorAll(s));
+  let paidLocal = {};
+  try { paidLocal = JSON.parse(localStorage.getItem(PAID_KEY)) || {}; } catch (e) {}
+  let held = false, coach = null, lastKey = '', lastHtml = '', ensuring = false;
+
+  const tutOn = () => !!(!held && S && S.tut && !S.tut.done && !S.tut.skipped && typeof S.tut.s === 'number');
+  const isPaid = k => !!((S.tut && S.tut.paid && S.tut.paid[k]) || paidLocal[k]);
+  const tutLocal = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };   // без метки времени и отправки на сервер
+  const remaining = () => Object.keys(REW).reduce((a, k) => a + (isPaid(k) ? 0 : REW[k]), 0);
+
+  function pay(k) {
+    if (isPaid(k)) return 0;
+    S.tut.paid = S.tut.paid || {}; S.tut.paid[k] = 1; paidLocal[k] = 1;
+    try { localStorage.setItem(PAID_KEY, JSON.stringify(paidLocal)); } catch (e) {}
+    S.coins += REW[k];
+    try { sfx('coin'); } catch (e) {}
+    save(); renderTop();
+    return REW[k];
+  }
+  function toast(t) {
+    const el = document.createElement('div'); el.className = 'tut-toast'; el.textContent = t;
+    document.body.appendChild(el); setTimeout(() => el.remove(), 2400);
+  }
+  const tutFoe = () => ({ stage: 1, boss: false, tut: true, units: [        // враги первого боя: у каждого союзника есть выгодная цель
+    { g: ['spore', 'spore'], lvl: 1, gen: 0 },
+    { g: ['bone', 'bone'], lvl: 1, gen: 0 },
+    { g: ['ether', 'ether'], lvl: 1, gen: 0 }
+  ] });
+  const parents = () => { const a = active(); return [a.find(m => m.id === 1) || a[0], a.find(m => m.id === 2) || a[1]].filter(Boolean); };
+  const nm = m => speciesName(m.g[0], m.g[1]);
+
+  /* ---------- шаги ---------- */
+  const STEPS = [
+    { id: 'welcome', modal: true },
+    { id: 'team', tab: 'arena', title: 'Твоя команда',
+      text: () => 'Это твои мутанты. У каждого два гена: первый даёт здоровье и спецприём, второй задаёт силу удара. В бой выходят сразу трое.',
+      hl: () => { const g = $$('#view .grid3'); return g[1] ? [g[1]] : []; }, next: 'Дальше' },
+    { id: 'wheel', tab: 'arena', title: 'Кто кого пробивает',
+      text: () => 'Гены ходят по кругу: Клык, Спора, Эфир, Сталь, Кость и снова Клык. Каждый бьёт следующего сильнее: по слабому гену врага урон ×1,25. Это главный секрет побед.',
+      hl: () => $$('#view .cycle'), next: 'Понятно' },
+    { id: 'fight', tab: 'arena', title: 'Первый бой', reward: 'fight',
+      text: () => 'Враги уже ждут, я выбрал слабых. Нажми «В бой».',
+      hl: () => $$('#view [data-act="fight"]'), allow: el => el.dataset.act === 'fight' },
+    { id: 'battle', battle: true, reward: 'fight',
+      allow: el => ['target', 'mode-attack', 'mode-special', 'auto'].indexOf(el.dataset.act) >= 0 },
+    { id: 'afterBattle', modal: true, allow: el => el.dataset.act === 'after-battle' },
+    { id: 'toLab', tab: 'arena', title: 'Селекция',
+      text: () => 'Теперь самое интересное: скрещивание. Новые мутанты это новые виды и новые клетки в бинго. Открой вкладку «Селекция».',
+      hl: () => $$('.tab[data-tab="lab"]'), allow: el => el.dataset.act === 'tab' && el.dataset.tab === 'lab' },
+    { id: 'pick', tab: 'lab', title: 'Выбери родителей',
+      text: () => { const p = parents(); return `Коснись подсвеченных карточек: ${p.map(nm).join(' и ')}. Потомок возьмёт по одному гену от каждого родителя.`; },
+      hl: () => { const ids = parents().map(m => m.id); return $$('#view .gridm .mc').filter(el => ids.indexOf(+el.dataset.id) >= 0 && !el.classList.contains('sel')); },
+      allow: el => el.dataset.act === 'pick' && parents().some(m => m.id === +el.dataset.id) },
+    { id: 'breed', tab: 'lab', title: 'Скрестить', reward: 'breed',
+      text: () => `Нажми «Скрестить». Это стоит ${breedCost()} монет. С шансом 8% случается мутация: ген появляется из ниоткуда.`,
+      hl: () => $$('#view [data-act="breed"]'), allow: el => el.dataset.act === 'breed' },
+    { id: 'born', modal: true, allow: el => el.dataset.act === 'close' },
+    { id: 'toBingo', tab: 'lab', title: 'Бинго видов',
+      text: () => 'Каждый новый вид закрашивает клетку на специальном поле. Загляни на вкладку «Бинго».',
+      hl: () => $$('.tab[data-tab="bingo"]'), allow: el => el.dataset.act === 'tab' && el.dataset.tab === 'bingo' },
+    { id: 'bingo1', tab: 'bingo', title: 'Поле видов',
+      text: () => `Строка это первый ген, столбец это второй. Сейчас открыто ${Object.keys(S.seen).length} из 25 видов. Каждый новый мутант закрашивает свою клетку.`,
+      hl: () => $$('#view .bingo'), next: 'Дальше' },
+    { id: 'bingo2', tab: 'bingo', title: 'Линии и награды', reward: 'bingo',
+      text: () => 'Закрой целую линию из 5 клеток и получишь награду. Строка или столбец: +60 монет и +6% к силе. Диагональ: +150 монет и особый бонус. Всё поле: +500 монет и +10% ко всем характеристикам.',
+      hl: () => $$('#view .rwlist'), next: 'Дальше' },
+    { id: 'finish', modal: true }
+  ];
+  const ID = {}; STEPS.forEach((s, i) => { ID[s.id] = i; });
+  const SHOWN = STEPS.filter(s => !s.modal);
+
+  /* ---------- окна ---------- */
+  function rewardRows() {
+    const rows = [['fight', 'Выиграть первый бой'], ['breed', 'Скрестить мутантов'], ['bingo', 'Заглянуть в бинго'], ['finish', 'Дойти до конца']];
+    return '<ul class="list tut-list">' + rows.map(([k, l]) =>
+      `<li class="${isPaid(k) ? 'got' : ''}"><span>${l}</span><b>${isPaid(k) ? 'получено' : '+' + REW[k]}</b></li>`).join('') + '</ul>';
+  }
+  function welcomeHTML() {
+    return `<div class="center"><span class="new">Обучение</span></div>
+      <h3>Добро пожаловать в Геномную арену!</h3>
+      <p class="sub center">Проведу тебя за руку: первый бой, скрещивание и бинго. Это займёт пару минут, а награды останутся тебе.</p>
+      ${rewardRows()}
+      <p class="sub center" style="margin:0 0 12px">Всего: <b style="color:var(--coin)">+${remaining()} монет</b></p>
+      <button class="btn primary wide" data-act="tut-start">Начать</button>
+      <button class="tut-skip" style="display:block;margin:6px auto 0" data-act="tut-skip-ask">Пропустить</button>`;
+  }
+  function skipHTML() {
+    return `<h3>Пропустить обучение?</h3>
+      <p class="sub center">Бонусы за него (${remaining()} монет) ты не получишь. Вернуться можно позже: кнопка оформления в шапке, раздел «Пройти обучение».</p>
+      <button class="btn primary wide" data-act="tut-resume">Продолжить обучение</button>
+      <button class="btn wide" style="margin-top:8px" data-act="tut-skip">Пропустить</button>`;
+  }
+  function finishHTML() {
+    const paid = isPaid('finish');
+    return `<div class="center"><span class="new">Обучение пройдено</span></div>
+      <h3>Теперь ты знаешь главное</h3>
+      ${rewardRows()}
+      <div class="tut-tips">
+        <p><b>Бой.</b> Подбирай команду под врагов: слабый ген врага даёт урон ×1,25.</p>
+        <p><b>Селекция.</b> Скрещивай мутантов, чтобы открывать новые виды и поколения.</p>
+        <p><b>Бинго.</b> Закрывай линии: за них монеты и постоянные бонусы.</p>
+        <p><b>Каждый день.</b> Задания: кнопка с календарём в шапке. Лаборатория сама копит монеты: забирай их на вкладке «Арена».</p>
+      </div>
+      <button class="btn primary wide" data-act="tut-finish">${paid ? 'Играть' : 'Забрать +' + REW.finish + ' и играть'}</button>`;
+  }
+  function helpHTML() {
+    return `<h3>Как играть</h3><div class="tut-help">
+      <h4>Бой</h4><p>Три мутанта против трёх врагов. Нажми на врага, чтобы ударить, или используй спецприём, когда на карточке горит ✦. Гены бьют по кругу: Клык, Спора, Эфир, Сталь, Кость, Клык. Бьёшь по слабому гену: урон ×1,25. За победу монеты и опыт, откроется следующая стадия.</p>
+      <h4>Селекция</h4><p>Выбери двух родителей и нажми «Скрестить». Потомок берёт по гену от каждого, шанс мутации 8%. Каждое поколение сильнее предыдущего (до 5-го).</p>
+      <h4>Бинго</h4><p>25 видов: строка это первый ген, столбец второй. Закрой линию и получишь монеты и постоянный бонус. Всё поле даёт +500 монет и +10% ко всем характеристикам.</p>
+      <h4>Монеты</h4><p>Бои, ежедневные задания, лаборатория (копит сама, до 8 часов) и бинго. Тратятся на скрещивание и прокачку.</p>
+    </div><button class="btn wide" style="margin-top:14px" data-act="close">Закрыть</button>`;
+  }
+
+  /* ---------- подсказки в бою ---------- */
+  function battleTip() {
+    const B = Bt.B, cur = Bt.cur;
+    const foes = B.foes.filter(u => u.alive);
+    const el = u => document.getElementById('u-' + u.id);
+    const mine = cur && cur.side === 'a' && !Bt.auto && !Bt.busy && !Bt.over;
+    if (Bt.auto) return { text: 'Автобой: бойцы играют сами, просто смотри. Выключить его можно той же кнопкой внизу.', hl: [] };
+    if (!mine) return { text: 'Ходят бойцы. Подожди свой ход…', hl: [] };
+    const g = GENES[cur.g[0]];
+    if (Bt.mode === 'special' && g.needsTarget) return { text: `Приём «${g.sp}»: выбери врага, по которому ударить.`, hl: foes.map(el).filter(Boolean) };
+    if (TUT.hits >= 1 && cur.cd === 0 && !TUT.usedSp) {
+      return { text: `Спецприём готов (значок ✦ на карточке)! «${g.sp}»: ${g.spDesc.charAt(0).toLowerCase() + g.spDesc.slice(1)}. Нажми подсвеченную кнопку.`, hl: $$('#ctrl [data-act="mode-special"]') };
+    }
+    const weak = foes.find(f => BEATS[cur.g[0]] === f.g[0]);
+    const tgt = weak || foes[0];
+    let text = TUT.hits === 0 ? 'Твой ход! ' : '';
+    text += weak ? `${cur.name} (ген «${g.name}») пробивает гена «${GENES[weak.g[0]].name}»: урон ×1,25. Нажми на подсвеченного врага.` : 'Нажми на подсвеченного врага, чтобы ударить.';
+    if (TUT.hits >= 2) text += ' Лень кликать? Есть «Автобой».';
+    return { text, hl: tgt ? [el(tgt)].filter(Boolean) : [] };
+  }
+
+  /* ---------- плашка-проводник ---------- */
+  function coachHTML(st, tip) {
+    const k = SHOWN.indexOf(st) + 1, pct = Math.round(k / SHOWN.length * 100);
+    const title = tip ? 'Бой' : st.title;
+    const text = tip ? tip.text : st.text();
+    const rw = st.reward && !isPaid(st.reward) ? `<p class="tut-rw">Награда: +${REW[st.reward]} монет</p>` : '';
+    const btn = st.next ? `<button class="btn primary" data-act="tut-next">${st.next}</button>` : '';
+    return `<div class="tut-bar"><i style="width:${pct}%"></i></div>
+      <div class="tut-top"><b>${title}</b><span>Шаг ${k} из ${SHOWN.length}</span></div>
+      <p>${text}</p>${rw}
+      <div class="tut-act">${btn}<button class="tut-skip" data-act="tut-skip-ask">Пропустить обучение</button></div>`;
+  }
+  function place() {
+    const dock = Bt ? document.querySelector('.dock') : document.querySelector('.tabs');
+    const h = dock ? dock.getBoundingClientRect().height : 0;
+    coach.style.bottom = (h + 8) + 'px';
+  }
+
+  // шаги, у которых окно закрылось или экран потерял состояние (перезагрузка), возвращаем в устойчивое место
+  function tutEnsure() {
+    if (ensuring) return false;
+    const st = STEPS[S.tut.s], mh = $('#modal').hidden;
+    let to = -1;
+    if (st.id === 'welcome' && mh && !Bt) { openModal(welcomeHTML()); return false; }
+    if (st.id === 'finish' && mh && !Bt) { openModal(finishHTML()); return false; }
+    if (st.id === 'battle' && !Bt) to = ID.fight;
+    if (st.id === 'afterBattle' && !Bt && mh) to = (TUT.won || isPaid('fight')) ? ID.toLab : ID.fight;
+    if (st.id === 'born' && mh) to = ID.toBingo;
+    if (to < 0) return false;
+    ensuring = true;
+    try { tutGo(to); } finally { ensuring = false; }
+    return true;
+  }
+
+  function tutApply() {
+    if (!coach) return;
+    const on = tutOn();
+    document.body.classList.toggle('tut-on', on);
+    $$('.tut-hl').forEach(e => e.classList.remove('tut-hl'));
+    if (!on) { coach.hidden = true; return; }
+    if (tutEnsure()) return;
+    const st = STEPS[S.tut.s];
+    if (st.modal) { coach.hidden = true; return; }
+    let hl, tip = null;
+    if (st.battle) {
+      if (!Bt || Bt.over) { coach.hidden = true; return; }
+      tip = battleTip(); hl = tip.hl;
+    } else {
+      if (Bt) { coach.hidden = true; return; }
+      hl = st.hl ? st.hl() : [];
+    }
+    const html = coachHTML(st, tip);
+    if (html !== lastHtml) { coach.innerHTML = html; lastHtml = html; }
+    coach.classList.toggle('compact', !!tip);
+    coach.hidden = false; place();
+    hl.forEach(e => e.classList.add('tut-hl'));
+    if (!st.battle && hl[0] && st.id !== lastKey && !hl[0].classList.contains('tab')) {
+      lastKey = st.id;
+      setTimeout(() => { try { hl[0].scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {} }, 80);
+    }
+  }
+
+  function tutGo(i) {
+    S.tut.s = i; lastKey = ''; tutLocal();
+    const st = STEPS[i];
+    if (st.tab && !Bt) {
+      if (tab !== st.tab) { tab = st.tab; picks = []; starSel = 0; confirmId = null; window.scrollTo(0, 0); }
+      if (st.tab === 'arena') arenaSub = 'main';
+    }
+    if (i <= ID.fight && S.foe && !S.foe.tut && S.stage === 1) S.foe = tutFoe();   // враги на экране = враги в бою
+    if (st.id === 'breed' && S.coins < breedCost()) { S.coins = breedCost(); tutLocal(); }
+    render();
+  }
+
+  /* ---------- блокировка лишних нажатий: «за ручку» ---------- */
+  function shake() { if (!coach || coach.hidden) return; coach.classList.remove('tut-shake'); void coach.offsetWidth; coach.classList.add('tut-shake'); }
+  function block(e) { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); shake(); }
+  document.addEventListener('click', e => {
+    if (!tutOn()) return;
+    if (e.target.closest('#tutCoach')) return;
+    const t = e.target.closest('[data-act]');
+    if (!t) { if (e.target.id === 'modal') block(e); return; }
+    if ((t.dataset.act || '').indexOf('tut-') === 0) return;
+    const st = STEPS[S.tut.s];
+    if (st.allow && st.allow(t)) return;
+    block(e);
+  }, true);
+  document.addEventListener('keydown', e => { if (tutOn() && e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); } }, true);
+
+  /* ---------- действия обучения ---------- */
+  function tutAct(a) {
+    switch (a) {
+      case 'tut-start': closeModal(); tutGo(ID.team); break;
+      case 'tut-next': {
+        const st = STEPS[S.tut.s];
+        if (st.id === 'bingo2') { const r = pay('bingo'); if (r) toast('+' + r + ' монет · бонус обучения'); }
+        tutGo(S.tut.s + 1); break;
+      }
+      case 'tut-skip-ask': openModal(skipHTML()); break;
+      case 'tut-resume': closeModal(); tutApply(); break;
+      case 'tut-skip': S.tut.skipped = 1; save(); closeModal(); render(); break;
+      case 'tut-again': S.tut.skipped = 0; S.tut.s = 0; closeModal(); tutGo(0); break;
+      case 'tut-help': openModal(helpHTML()); break;
+      case 'tut-finish': {
+        const r = pay('finish'); S.tut.done = 1; save();
+        closeModal(); tab = 'arena'; arenaSub = 'main'; render(); window.scrollTo(0, 0);
+        toast(r ? '+' + r + ' монет · обучение пройдено' : 'Удачи на арене!'); break;
+      }
+    }
+  }
+
+  /* ---------- перехваты функций игры ---------- */
+  const _render = window.render;
+  window.render = function () { _render.apply(this, arguments); try { tutApply(); } catch (e) { console.error(e); } };
+
+  const _updateBattle = window.updateBattle;
+  window.updateBattle = function () { _updateBattle.apply(this, arguments); if (tutOn() && Bt) { try { tutApply(); } catch (e) { console.error(e); } } };
+
+  const _doAct = window.doAct;
+  window.doAct = function (u, kind) {
+    if (tutOn() && Bt && u && u.side === 'a' && !Bt.auto) { TUT.hits++; if (kind === 'special') TUT.usedSp = true; }
+    return _doAct.apply(this, arguments);
+  };
+
+  const _startBattle = window.startBattle;
+  window.startBattle = function (train, duel, giant) {
+    if (tutOn() && STEPS[S.tut.s].id === 'fight' && !train && !duel && !giant) {
+      TUT.hits = 0; TUT.usedSp = false; TUT.won = false;
+      S.tut.s = ID.battle; lastKey = ''; tutLocal();
+    }
+    return _startBattle.apply(this, arguments);
+  };
+
+  const _finishBattle = window.finishBattle;
+  window.finishBattle = function () {
+    const me = Bt;
+    _finishBattle.apply(this, arguments);
+    if (!(tutOn() && me && STEPS[S.tut.s].id === 'battle' && !me.train && !me.duel && !me.giant)) return;
+    const won = outcome(me.B) === 'win';
+    TUT.won = won;
+    const r = won ? pay('fight') : 0;
+    S.tut.s = ID.afterBattle; tutLocal();
+    const btn = $('#modal [data-act="after-battle"]');
+    if (btn) btn.insertAdjacentHTML('beforebegin', won
+      ? `<p class="tut-note">${r ? 'Бонус обучения: <b>+' + r + ' монет</b>. ' : ''}Дальше учимся скрещивать мутантов.</p>`
+      : '<p class="tut-note">Ничего страшного: попробуем ещё раз. Подсказка: бей по слабому гену врага, это ×1,25 к урону.</p>');
+    tutApply();
+  };
+
+  const _showNewborn = window.showNewborn;
+  window.showNewborn = function (m, fresh) {
+    const was = tutOn() && STEPS[S.tut.s].id === 'breed';
+    _showNewborn.apply(this, arguments);
+    if (!was) return;
+    const r = pay('breed');
+    S.tut.s = ID.born; tutLocal();
+    const btn = $('#modal [data-act="close"]');
+    if (btn) btn.insertAdjacentHTML('beforebegin', `<p class="tut-note">${r ? 'Бонус обучения: <b>+' + r + ' монет</b>. ' : ''}${fresh ? 'Это новый вид: он закрасит клетку в бинго. Сейчас покажу.' : 'Такой вид у тебя уже был, но дальше покажу, куда они складываются.'}</p>`);
+    tutApply();
+  };
+
+  const _act = window.act_;
+  window.act_ = function (a, d) {
+    if (typeof a === 'string' && a.indexOf('tut-') === 0) return tutAct(a);
+    if (!tutOn()) return _act.apply(this, arguments);
+    const st = STEPS[S.tut.s];
+    const r = _act.apply(this, arguments);
+    if (st.id === 'toLab' && a === 'tab' && d.tab === 'lab') tutGo(ID.pick);
+    else if (st.id === 'pick' && a === 'pick' && picks.length === 2) tutGo(ID.breed);
+    else if (st.id === 'toBingo' && a === 'tab' && d.tab === 'bingo') tutGo(ID.bingo1);
+    return r;
+  };
+
+  const _styleHTML = window.styleHTML;
+  window.styleHTML = function () {
+    const h = _styleHTML.apply(this, arguments);
+    const extra = '<button class="btn wide" style="margin-top:16px" data-act="tut-help">Как играть</button>' +
+      (S.tut && S.tut.skipped && !S.tut.done ? '<button class="btn wide" style="margin-top:8px" data-act="tut-again">Пройти обучение</button>' : '');
+    const mark = '<button class="btn wide" style="margin-top:8px" data-act="close">';
+    const i = h.lastIndexOf(mark);
+    return i >= 0 ? h.slice(0, i) + extra + h.slice(i) : h + extra;
+  };
+
+  /* ---------- запуск ---------- */
+  coach = document.createElement('div');
+  coach.id = 'tutCoach'; coach.className = 'tut-coach'; coach.hidden = true;
+  coach.setAttribute('role', 'status'); coach.setAttribute('aria-live', 'polite');
+  $('#modal').after(coach);
+
+  if (!S.tut) {
+    const vet = !!(S.wins || S.losses || S.stage > 1 || S.mutants.length !== 3 || S.ts);   // у опытного игрока обучения нет
+    S.tut = vet ? { done: 1, paid: {} } : { s: 0, paid: {} };
+    tutLocal();
+  }
+  if (tutOn()) {
+    let busy = false;
+    try { busy = !!duelSpec || !!PK.joinId; } catch (e) {}                 // пришёл по ссылке друга: обучение начнём в следующий раз
+    if (busy) held = true;
+    else {
+      const back = { battle: 'fight', afterBattle: isPaid('fight') ? 'toLab' : 'fight', breed: 'pick', born: 'toBingo' }[STEPS[S.tut.s].id];
+      tutGo(back ? ID[back] : S.tut.s);
+    }
+  }
+})();
+</script>
+
 </body></html>
