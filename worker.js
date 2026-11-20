@@ -367,7 +367,7 @@ const EV_STEPS = [                                  // награды по об�
 ];
 // Наибольший урон одного бойца за 12 раундов в долях его атаки: 8 обычных ударов (×1,25 за превосходство × 1,1 разброс)
 // и 4 особых умения гена. Для яда добавлены тики. Это верхняя граница, честный бой даёт заметно меньше.
-const DMG_K = { fang: 22, steel: 15.4, spore: 18.4, bone: 17.6, ether: 16.5 };
+const DMG_K = { fang: 22, steel: 15.4, spore: 26, bone: 17.6, ether: 16.5 };
 const GENE_ATK = { fang: 12, steel: 8, spore: 9, ether: 10, bone: 10 };   // базовая атака генов (как GENES в игре)
 const BINGO_ATK_UB = 1.2;                           // верхняя оценка бонусов бинго к атаке (реально до 1,06 × 1,1 = 1,166)
 const GENE_LIST = ['fang', 'steel', 'spore', 'ether', 'bone'];
@@ -570,6 +570,90 @@ async function evMark(env, uid, acc) {
   }
 }
 
+// ---------- СЕЗОННЫЙ РЕЙТИНГ (неделя с понедельника 00:00 по Москве) ----------
+// Очки начисляются только за победы, которые прошли проверку сохранения (checkDelta), и весят больше на высоких стадиях.
+// Таблицы season_scores и season_claims (схема в schema-season.sql). Награды в сохранение игрока попадают через
+// seasonAllowance/seasonMark, как и награды события.
+const SEASON_MS = 7 * 86400000;
+const seasonOf = t => Math.floor((Math.floor((t + 3 * 3600000) / 86400000) + 3) / 7);
+const seasonStart = s => (s * 7 - 3) * 86400000 - 3 * 3600000;
+const SEASON_CLAIM_BACK = 4;                         // забрать награду можно не позже чем через 4 сезона
+const SEASON_MIN_PTS = 50;                           // меньше очков — места в наградах нет
+const seasonWin = stage => 10 + Math.min(500, Math.max(1, stage || 1));   // очки за одну победу
+const SEASON_REWARDS = [                             // [до места включительно, монеты, токены 1/2/3 тира]
+  [1, 3000, 1, 1, 0],
+  [2, 2000, 2, 0, 0],
+  [3, 1500, 1, 0, 0],
+  [10, 1000, 0, 0, 0],
+  [50, 400, 0, 0, 0]
+];
+function seasonReward(place) {
+  for (const r of SEASON_REWARDS) if (place <= r[0]) return { coins: r[1], t1: r[2], t2: r[3], t3: r[4] };
+  return null;
+}
+async function seasonAdd(env, uid, P, N, elapsed, now) {
+  if (!P) return;
+  const cap = Math.ceil(LIM.winBase + Math.max(0, elapsed) * LIM.winRate);
+  const dW = Math.min((N.wins || 0) - (P.wins || 0), cap);
+  if (dW <= 0) return;
+  const pts = dW * seasonWin(Math.max(P.stage || 1, N.stage || 1));
+  await env.DB.prepare('INSERT INTO season_scores (season, uid, pts, wins, ts) VALUES (?, ?, ?, ?, ?) ON CONFLICT(season, uid) DO UPDATE SET pts = pts + excluded.pts, wins = wins + excluded.wins, ts = excluded.ts')
+    .bind(seasonOf(now), uid, pts, dW, now).run();
+}
+const SEASON_BASE = 'FROM season_scores s JOIN players p ON p.uid = s.uid WHERE s.season = ? AND p.flagged = 0 AND p.uid NOT IN (SELECT uid FROM banned)';
+async function seasonPlace(env, season, uid) {
+  const me = await env.DB.prepare('SELECT s.pts AS pts, s.wins AS wins, s.ts AS ts ' + SEASON_BASE + ' AND s.uid = ?').bind(season, uid).first();
+  if (!me || me.pts < SEASON_MIN_PTS) return { pts: me ? me.pts : 0, wins: me ? me.wins : 0, place: 0 };
+  const r = await env.DB.prepare('SELECT COUNT(*) AS n ' + SEASON_BASE + ' AND (s.pts > ? OR (s.pts = ? AND (s.ts < ? OR (s.ts = ? AND s.uid < ?))))').bind(season, me.pts, me.pts, me.ts, me.ts, uid).first();
+  return { pts: me.pts, wins: me.wins, place: 1 + r.n };
+}
+async function seasonPending(env, uid, now) {
+  const cur = seasonOf(now), out = [];
+  const done = new Set(((await env.DB.prepare('SELECT season FROM season_claims WHERE uid = ?').bind(uid).all()).results || []).map(x => x.season));
+  const mine = (await env.DB.prepare('SELECT season FROM season_scores WHERE uid = ? AND season < ? AND season >= ?').bind(uid, cur, cur - SEASON_CLAIM_BACK).all()).results || [];
+  for (const m of mine) {
+    if (done.has(m.season)) continue;
+    const pl = await seasonPlace(env, m.season, uid), rw = pl.place ? seasonReward(pl.place) : null;
+    if (rw) out.push({ season: m.season, place: pl.place, pts: pl.pts, ...rw });
+  }
+  return out.sort((a, b) => a.season - b.season);
+}
+async function handleSeason(env, uid, body) {
+  const now = Date.now(), cur = seasonOf(now);
+  if (body.action === 'claim') {
+    const list = await seasonPending(env, uid, now);
+    const sum = { coins: 0, t1: 0, t2: 0, t3: 0 }, got = [];
+    for (const p of list) {
+      const r = await env.DB.prepare('INSERT OR IGNORE INTO season_claims (uid, season, place, coins, t1, t2, t3) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(uid, p.season, p.place, p.coins, p.t1, p.t2, p.t3).run();
+      if (r.meta.changes === 1) { sum.coins += p.coins; sum.t1 += p.t1; sum.t2 += p.t2; sum.t3 += p.t3; got.push(p.season); }
+    }
+    return { ok: true, claimed: got, reward: sum };
+  }
+  const top = ((await env.DB.prepare('SELECT p.name AS name, s.pts AS pts, s.wins AS wins ' + SEASON_BASE + ' ORDER BY s.pts DESC, s.ts ASC, s.uid ASC LIMIT 20').bind(cur).all()).results || []);
+  const me = await seasonPlace(env, cur, uid);
+  return {
+    season: cur, start: seasonStart(cur), end: seasonStart(cur + 1), now,
+    top: top.map(x => ({ name: x.name, pts: x.pts, wins: x.wins })),
+    me, pending: await seasonPending(env, uid, now),
+    rewards: SEASON_REWARDS.map((r, i) => ({ from: i ? SEASON_REWARDS[i - 1][0] + 1 : 1, to: r[0], coins: r[1], t1: r[2], t2: r[3], t3: r[4] })),
+    minPts: SEASON_MIN_PTS
+  };
+}
+// Выданное, но ещё не учтённое проверкой сохранений: монеты и токены трёх тиров
+async function seasonAllowance(env, uid) {
+  const out = { c: 0, t: { 1: 0, 2: 0, 3: 0, 4: 0 }, rows: [] };
+  try {
+    const rs = (await env.DB.prepare('SELECT season, coins, t1, t2, t3, mc, m1, m2, m3 FROM season_claims WHERE uid = ? AND (mc < coins OR m1 < t1 OR m2 < t2 OR m3 < t3)').bind(uid).all()).results || [];
+    for (const r of rs) { out.c += r.coins - r.mc; out.t[1] += r.t1 - r.m1; out.t[2] += r.t2 - r.m2; out.t[3] += r.t3 - r.m3; out.rows.push(r); }
+  } catch (e) { /* таблицы нет: сезонов нет */ }
+  return out;
+}
+async function seasonMark(env, uid, acc) {
+  for (const r of acc.rows) {
+    try { await env.DB.prepare('UPDATE season_claims SET mc = coins, m1 = t1, m2 = t2, m3 = t3 WHERE uid = ? AND season = ?').bind(uid, r.season).run(); } catch (e) { /* отметим при следующем сохранении */ }
+  }
+}
+
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
@@ -590,7 +674,7 @@ const inner = {
       ctx.waitUntil(handleAdmin(env, u).catch(e => say(env, 'Ошибка: ' + String((e && e.message) || e))));   // ошибку показываем админу
       return json({ ok: true });
     }
-    if (request.method !== 'POST' || !['/load', '/save', '/ref', '/score', '/pack'].includes(path)) return json({ error: 'not found' }, 404);
+    if (request.method !== 'POST' || !['/load', '/save', '/ref', '/score', '/pack', '/season'].includes(path)) return json({ error: 'not found' }, 404);
 
     let body;
     try { body = await request.json(); } catch (e) { return json({ error: 'bad json' }, 400); }
@@ -600,6 +684,7 @@ const inner = {
 
     if (path === '/ref') return json(await handleRef(env, ctx, uid, v.params, body.action));
     if (path === '/pack') return json(await handlePack(env, ctx, uid, v.params, body));
+    if (path === '/season') return json(await handleSeason(env, uid, body));
 
     if (path === '/load') {
       const row = await env.DB.prepare('SELECT rev, data FROM saves WHERE uid = ?').bind(uid).first();
@@ -629,6 +714,11 @@ const inner = {
     const refRow = await env.DB.prepare('SELECT claimed FROM ref_claims WHERE uid = ?').bind(uid).first();
     const refNow = refRow ? refRow.claimed : 0;
     const evAcc = await evAllowance(env, uid);
+    const seAcc = await seasonAllowance(env, uid);
+    const allow = { c: evAcc.c + seAcc.c, t: { 1: evAcc.t[1] + seAcc.t[1], 2: evAcc.t[2] + seAcc.t[2], 3: evAcc.t[3] + seAcc.t[3], 4: evAcc.t[4] + seAcc.t[4] } };
+    let Pj = null;
+    if (row) { try { Pj = JSON.parse(row.data); } catch (e) { Pj = null; } }
+    if (Pj && checkShape(Pj)) Pj = null;
     let reason = checkShape(N), shape = !!reason, flagged = 0;
     if (!reason && !trusted) {
       let P = null;
@@ -640,7 +730,7 @@ const inner = {
       } else if (P && !checkShape(P)) {
         let refExtra = 0;
         for (let k = (row.refc || 0) + 1; k <= refNow; k++) refExtra += refReward(k);
-        reason = checkDelta(P, N, (now - row.ts) / 1000, now, refExtra, evAcc);
+        reason = checkDelta(P, N, (now - row.ts) / 1000, now, refExtra, allow);
       } else if (firstIsBig(N)) flagged = 1;           // истории нет, а прогресс не для новичка: сохраняем, но скрываем из рейтинга
     }
     if (reason) {
@@ -664,6 +754,8 @@ const inner = {
     }
     if (changed === 1) {
       if (evAcc.rows.length) await evMark(env, uid, evAcc);
+      if (seAcc.rows.length) await seasonMark(env, uid, seAcc);
+      if (!flagged && !shape) { try { await seasonAdd(env, uid, Pj, N, row ? (now - row.ts) / 1000 : 0, now); } catch (e) { /* таблиц сезона нет */ } }
       await env.DB.prepare('INSERT INTO players (uid, name, best, flagged, ts) VALUES (?, ?, ?, ?, ?) ON CONFLICT(uid) DO UPDATE SET name = excluded.name, best = MAX(players.best, excluded.best), flagged = MAX(players.flagged, excluded.flagged), ts = excluded.ts')
       .bind(uid, nameOf(v.params), bestOf(N), flagged, now).run();
       return json({ ok: true, rev: rev + 1 });

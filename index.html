@@ -226,6 +226,9 @@ body.in-battle .tabs{display:none}
 .tab{font-size:11px;letter-spacing:.02em;padding:10px 1px}
 @media (max-width:359px){.tab{font-size:11px;letter-spacing:0}}
 /* рейтинг */
+.seg{display:flex;gap:6px;margin:10px 0 0}.seg .btn{flex:1}
+.tab{position:relative}.tab.dot::after{content:'';position:absolute;top:2px;right:calc(50% - 20px);width:8px;height:8px;border-radius:50%;background:var(--bad)}
+.rwt{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px;font-size:13px}.rwt li{display:flex;justify-content:space-between;gap:8px;color:var(--muted)}.rwt b{color:var(--fg);font-weight:600}
 .lb{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
 .lb li{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
 .lb .pos{flex:none;width:28px;font-family:var(--font-mono);font-weight:700;color:var(--muted);font-variant-numeric:tabular-nums}
@@ -467,7 +470,7 @@ const GENE_IDS = ['fang', 'steel', 'spore', 'ether', 'bone'];
 const GENES = {
   fang:  { name: 'Клык',  hex: '#ff6b57', hp: 40, atk: 12, spd: 6, sp: 'Рывок',     spDesc: 'Двойной удар по одной цели',      needsTarget: true  },
   steel: { name: 'Сталь', hex: '#5aa9e6', hp: 60, atk: 8,  spd: 3, sp: 'Залп',      spDesc: 'Удар по всем врагам, 80% силы',   needsTarget: false },
-  spore: { name: 'Спора', hex: '#9bd04f', hp: 45, atk: 9,  spd: 5, sp: 'Яд',        spDesc: 'Слабый удар и яд на 3 хода',      needsTarget: true  },
+  spore: { name: 'Спора', hex: '#9bd04f', hp: 50, atk: 9,  spd: 5, sp: 'Яд',        spDesc: 'Удар и яд на 4 хода',      needsTarget: true  },
   ether: { name: 'Эфир',  hex: '#b78cff', hp: 38, atk: 10, spd: 8, sp: 'Исцеление', spDesc: 'Лечит самого раненого союзника',  needsTarget: false },
   bone:  { name: 'Кость', hex: '#e6dcc2', hp: 52, atk: 10, spd: 4, sp: 'Вампиризм', spDesc: 'Сильный удар, лечит себя на половину урона', needsTarget: true }
 };
@@ -696,10 +699,10 @@ function act(B, u, kind, target) {
     if (g === 'fang') hit(u, target, 2, ev);
     if (g === 'steel') alive(foes).forEach(t => hit(u, t, 0.8, ev));
     if (g === 'spore') {
-      hit(u, target, 0.6, ev);
+      hit(u, target, 1.0, ev);
       if (target.alive) {
-        target.poison = 3;
-        target.poisonDmg = Math.max(1, Math.round(u.atk * 0.4));
+        target.poison = Math.max(target.poison || 0, 4);
+        target.poisonDmg = Math.max(target.poisonDmg || 0, Math.max(1, Math.round(u.atk * 0.6)));
         ev.push({ id: target.id, type: 'status' });
       }
     }
@@ -2178,8 +2181,10 @@ function showNewborn(m, fresh, mutated, bingo = []) {
 function act_(a, d) {
   const id = d.id ? (isNaN(+d.id) ? d.id : +d.id) : null;
   switch (a) {
-    case 'tab': tab = d.tab; picks = []; mergePick = []; starSel = 0; confirmId = null; if (tab === 'top') LB.status = 'loading'; render(); window.scrollTo(0, 0); if (tab === 'top') loadTop(); break;
-    case 'refresh-top': LB.status = 'loading'; render(); loadTop(); break;
+    case 'tab': tab = d.tab; picks = []; mergePick = []; starSel = 0; confirmId = null; if (tab === 'top') LB.status = 'loading'; render(); window.scrollTo(0, 0); if (tab === 'top') { loadTop(); loadSeason(); } break;
+    case 'lb-mode': LB.mode = d.mode === 'all' ? 'all' : 'season'; render(); break;
+    case 'season-claim': claimSeason(); break;
+    case 'refresh-top': LB.status = 'loading'; render(); loadTop(); loadSeason(); break;
     case 'chart': openModal(chartHTML()); break;
     case 'bingo-tier': bingoTier = id; render(); break;
     case 'star-open': openModal(starPickHTML()); break;
@@ -2385,7 +2390,7 @@ document.addEventListener('click', e => {
   if (t.dataset.act === 'sound-set') { Snd.set(t.dataset.id === 'on'); sfx('coin'); openModal(styleHTML()); return; }
   if (t.dataset.act === 'style') { openModal(styleHTML()); return; }
   if (t.dataset.act === 'style-set') { setStyle(t.dataset.id); return; }
-  act_(t.dataset.act, { id: t.dataset.id, tab: t.dataset.tab });
+  act_(t.dataset.act, { id: t.dataset.id, tab: t.dataset.tab, mode: t.dataset.mode });
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && !$('#modal').hidden && !(Bt && Bt.over)) { closeModal(); render(); }
@@ -2406,7 +2411,8 @@ try {
   }
 } catch (e) { /* старый клиент Telegram: игра работает и так */ }
 
-let LB = { status: 'idle', top: [], mine: null };
+let LB = { status: 'idle', top: [], mine: null, mode: 'season' };
+let SE = { status: 'idle', top: [], me: null, pending: [], rewards: [], end: 0, skew: 0, busy: false };
 
 /* ---------- СИНХРОНИЗАЦИЯ С СЕРВЕРОМ (Cloudflare Worker + база D1) ---------- */
 const SAVE_API = 'https://arena-save.dan8lggflowersyt.workers.dev';
@@ -2557,6 +2563,50 @@ async function submitScore() {
   } catch (e) { /* нет связи: рекорд уйдёт при следующей победе */ }
 }
 
+async function loadSeason() {
+  if (!canSync) { SE.status = 'nosync'; return; }
+  try {
+    const d = await api('/season', { action: 'state' });
+    Object.assign(SE, d, { status: 'ok', skew: (d.now || Date.now()) - Date.now() });
+  } catch (e) { SE.status = 'error'; }
+  const b = document.querySelector('.tab[data-tab="top"]');
+  if (b) b.classList.toggle('dot', !!(SE.pending && SE.pending.length));
+  if (tab === 'top' && !Bt && $('#modal').hidden) render();
+}
+async function claimSeason() {
+  if (SE.busy) return;
+  SE.busy = true;
+  try {
+    const r = await api('/season', { action: 'claim' });
+    const w = r.reward || {};
+    if (r.ok && (w.coins || w.t1 || w.t2 || w.t3)) {
+      S.coins += w.coins || 0;
+      S.tokens[1] = (S.tokens[1] || 0) + (w.t1 || 0); S.tokens[2] = (S.tokens[2] || 0) + (w.t2 || 0); S.tokens[3] = (S.tokens[3] || 0) + (w.t3 || 0);
+      sfx('coin'); save();
+      notify('Награда сезона: +' + w.coins + ' монет' + (w.t1 ? ', токен 1 тира ×' + w.t1 : '') + (w.t2 ? ', токен 2 тира ×' + w.t2 : '') + (w.t3 ? ', токен 3 тира ×' + w.t3 : '') + '!');
+      pushNow();
+    }
+  } catch (e) { notify('Не удалось забрать награду, попробуй позже'); }
+  SE.busy = false;
+  await loadSeason(); render();
+}
+const fmtLeft = ms => { const m = Math.max(0, Math.floor(ms / 60000)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60); return d ? d + ' д ' + h + ' ч' : h + ' ч ' + (m % 60) + ' мин'; };
+function viewSeason() {
+  if (SE.status === 'nosync') return '<p class="sub center" style="margin-top:14px">Сезонный рейтинг работает, если открыть игру через Telegram.</p>';
+  if (SE.status === 'idle' || (SE.status === 'loading' && !SE.end)) return '<p class="sub center" style="margin-top:14px">Загрузка…</p>';
+  if (SE.status === 'error' && !SE.end) return '<p class="sub center" style="margin-top:14px">Не удалось загрузить сезон. Нажми «Обновить».</p>';
+  const left = fmtLeft(SE.end - (Date.now() + SE.skew));
+  const me = SE.me || { pts: 0, wins: 0, place: 0 };
+  const pend = (SE.pending || []);
+  const claim = pend.length ? `<div class="panel" style="margin:10px 0 0;border-color:var(--coin)">
+    <p class="sub" style="margin:0 0 8px"><b style="color:var(--fg)">Награда за прошлый сезон</b>: ${pend.map(p => p.place + ' место (' + p.coins + ' монет' + (p.t1 ? ' + токен 1 тира' + (p.t1 > 1 ? ' ×' + p.t1 : '') : '') + (p.t2 ? ' + токен 2 тира' + (p.t2 > 1 ? ' ×' + p.t2 : '') : '') + (p.t3 ? ' + токен 3 тира' : '') + ')').join(', ')}</p>
+    <button class="btn primary wide" data-act="season-claim">Забрать награду</button></div>` : '';
+  const mine = `<p class="sub">До конца сезона: <b style="color:var(--fg)">${left}</b> · твои очки <b style="color:var(--fg)">${me.pts}</b>${me.place ? ' · место <b style="color:var(--fg)">' + me.place + '</b>' : (me.pts ? ' · нужно ' + SE.minPts + ' очков для места в наградах' : '')}</p>`;
+  const body = !SE.top.length ? '<p class="sub center" style="margin-top:14px">В этом сезоне пока никого. Выиграй бой и стань первым!</p>'
+    : `<ol class="lb">${SE.top.map((r, i) => `<li><span class="pos">${i + 1}</span><span class="who">${esc(r.name)}</span><span class="sc">${esc(r.pts)} оч.</span></li>`).join('')}</ol>`;
+  const rw = `<ul class="rwt">${(SE.rewards || []).map(r => `<li><span>${r.from === r.to ? r.from + ' место' : r.from + '–' + r.to + ' места'}</span><b>${r.coins} монет${r.t1 ? ' + токен 1 тира' + (r.t1 > 1 ? ' ×' + r.t1 : '') : ''}${r.t2 ? ' + токен 2 тира' : ''}${r.t3 ? ' + токен 3 тира' : ''}</b></li>`).join('')}</ul>`;
+  return `${claim}${mine}${body}<p class="sub" style="margin:14px 0 0"><b style="color:var(--fg)">Награды сезона</b>. Очки дают победы в боях: чем выше стадия, тем больше очков за победу. Сезон идёт неделю, сброс в понедельник в полночь по Москве.</p>${rw}`;
+}
 async function loadTop() {
   try {
     const r = await fetch(SAVE_API + '/top');
@@ -2578,11 +2628,12 @@ function viewTop() {
   else if (!LB.top.length) body = '<p class="sub center" style="margin-top:14px">Пока никого нет. Стань первым!</p>';
   else body = `<ol class="lb">${LB.top.map((r, i) =>
     `<li><span class="pos">${i + 1}</span><span class="who">${esc(r.name)}</span><span class="sc">стадия ${esc(r.best)}</span></li>`).join('')}</ol>`;
+  const seas = LB.mode === 'season';
   return `
   <section class="panel">
     <h2 class="h">Рейтинг арены</h2>
-    <p class="sub">Топ-20 по самой высокой достигнутой стадии.</p>
-    ${mine}${note}${body}
+    <div class="seg"><button class="btn${seas ? ' primary' : ''}" data-act="lb-mode" data-mode="season">Сезон</button><button class="btn${seas ? '' : ' primary'}" data-act="lb-mode" data-mode="all">Всё время</button></div>
+    ${seas ? viewSeason() : `<p class="sub">Топ-20 по самой высокой достигнутой стадии.</p>${mine}${note}${body}`}
     <div style="margin-top:12px"><button class="btn wide" data-act="refresh-top">Обновить</button></div>
   </section>
   ${viewRef()}`;
@@ -2635,6 +2686,7 @@ try {                                                      // зашёл по с
 } catch (e) {}
 syncLoad();
 refSync(true);
+loadSeason();
 setInterval(() => { if (tab === 'arena' && arenaSub === 'main' && !Bt && $('#modal').hidden) updateLab(); }, 20000);
 render();
 submitScore();
