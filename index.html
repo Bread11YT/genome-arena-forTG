@@ -235,8 +235,58 @@ body.in-battle .tabs{display:none}
 .lb li:nth-child(1) .pos{color:var(--coin)}
 .lb li:nth-child(2) .pos{color:#c9d3dc}
 .lb li:nth-child(3) .pos{color:#d98e55}
+.lb .av{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:13px;background:var(--surface);border:1px solid var(--line);color:var(--muted)}
+.lb li.me .av{border-color:var(--coin);color:var(--coin)}
 .lb .who{flex:1;min-width:0;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lb .sc{flex:none;font-family:var(--font-mono);font-weight:700;font-size:13px;color:var(--coin);font-variant-numeric:tabular-nums}
+
+/* сезонный рейтинг: оформление */
+.seg{margin:10px 0 0}
+.se-hero{position:relative;overflow:hidden;border:1px solid var(--coin);border-radius:12px;padding:14px;margin:12px 0 0;background:linear-gradient(155deg,color-mix(in srgb,var(--coin) 18%,var(--surface2)),var(--surface2) 68%)}
+.se-hero::after{content:"";position:absolute;right:-30px;top:-30px;width:110px;height:110px;border-radius:50%;background:radial-gradient(circle,color-mix(in srgb,var(--coin) 35%,transparent),transparent 70%);pointer-events:none}
+.se-top{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;position:relative;z-index:1}
+.se-lbl{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.se-time{font-family:var(--font-mono);font-size:24px;font-weight:700;line-height:1.15;font-variant-numeric:tabular-nums;margin-top:2px}
+.se-tag{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);background:var(--coin);border-radius:999px;padding:3px 9px;white-space:nowrap}
+.se-bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-top:12px;position:relative;z-index:1}
+.se-bar i{display:block;height:100%;background:var(--coin);border-radius:3px}
+.se-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:12px;position:relative;z-index:1}
+.se-st{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 4px;text-align:center;min-width:0}
+.se-st b{display:block;font-family:var(--font-mono);font-size:19px;line-height:1.2;font-variant-numeric:tabular-nums}
+.se-st span{font-size:11px;color:var(--muted)}
+.se-st.hot{border-color:var(--coin)}.se-st.hot b{color:var(--coin)}
+.se-need{margin:10px 0 0;font-size:12.5px;color:var(--muted);position:relative;z-index:1}
+.se-need b{color:var(--fg)}
+.se-claim{border:1px solid var(--coin);border-radius:12px;padding:12px;margin:12px 0 0;background:color-mix(in srgb,var(--coin) 10%,var(--surface2));animation:seglow 2.4s ease-in-out infinite}
+@keyframes seglow{0%,100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--coin) 0%,transparent)}50%{box-shadow:0 0 14px 0 color-mix(in srgb,var(--coin) 45%,transparent)}}
+.se-claim .se-lbl{color:var(--coin);margin-bottom:6px}
+.se-claim .cl{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 8px}
+.se-claim .cl .pl{font-family:var(--font-mono);font-weight:700;margin-right:2px}
+.rc{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--surface);border:1px solid var(--line);white-space:nowrap}
+.rc::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--tc,var(--coin))}
+.se-h{font-family:var(--font-display);font-weight:700;font-size:12px;letter-spacing:.07em;text-transform:uppercase;margin:18px 0 8px}
+.pod{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:8px;align-items:end;margin:16px 0 0}
+.pd{--mc:var(--muted);display:grid;justify-items:center;gap:3px;min-width:0}
+.pd.p1{--mc:#e6b422}.pd.p2{--mc:#9aa7b4}.pd.p3{--mc:#d98e55}
+.av{position:relative;overflow:hidden}.av .avimg{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%}
+.pd .av{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:18px;background:var(--surface2);border:2px solid var(--mc);color:var(--mc)}
+.pd.p1 .av{width:56px;height:56px;font-size:23px;box-shadow:0 0 16px color-mix(in srgb,var(--mc) 55%,transparent)}
+.pd .nm{max-width:100%;font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-top:3px}
+.pd .pts{font-family:var(--font-mono);font-size:12px;font-weight:700;color:var(--coin);white-space:nowrap}
+.pd .base{width:100%;display:grid;place-items:center;font-family:var(--font-mono);font-weight:700;font-size:22px;color:var(--mc);border:1px solid var(--line);border-bottom:0;border-radius:10px 10px 0 0;background:linear-gradient(color-mix(in srgb,var(--mc) 32%,var(--surface2)),var(--surface2));margin-top:4px}
+.pd.p1 .base{height:62px}.pd.p2 .base{height:46px}.pd.p3 .base{height:34px}
+.pd.me .nm{color:var(--coin)}
+.you{font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink);background:var(--coin);border-radius:999px;padding:1px 6px;margin-left:6px;vertical-align:1px}
+.pod+.lb{margin-top:0;border-top:1px solid var(--line);padding-top:10px}
+.lb li.me{border-color:var(--coin);background:color-mix(in srgb,var(--coin) 10%,var(--surface2));box-shadow:0 0 0 1px var(--coin)}
+.lb li.me .pos{color:var(--coin)}
+.lb li.cut{background:none;border:0;padding:2px 0;justify-content:center;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.rwc{display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.rwc.mine{border-color:var(--coin);box-shadow:0 0 0 1px var(--coin)}
+.rwc .rp{flex:none;min-width:48px;text-align:center;font-family:var(--font-mono);font-weight:700;font-size:14px;padding:5px 6px;border-radius:8px;background:var(--surface);border:1px solid var(--line)}
+.rwc.g1 .rp{color:#e6b422;border-color:#e6b422}.rwc.g2 .rp{color:#9aa7b4;border-color:#9aa7b4}.rwc.g3 .rp{color:#d98e55;border-color:#d98e55}
+.rwc .rcs{display:flex;flex-wrap:wrap;gap:5px}
+.rwl{display:grid;gap:6px}
 /* звёздные тиры */
 .t1{--tc:#cd7f32}.t2{--tc:#c9d3dc}.t3{--tc:#ffd24d}.t4{--tc:#8fe8ff}
 .mc.tiered{border-color:var(--tc)}
@@ -2591,22 +2641,59 @@ async function claimSeason() {
   await loadSeason(); render();
 }
 const fmtLeft = ms => { const m = Math.max(0, Math.floor(ms / 60000)), d = Math.floor(m / 1440), h = Math.floor(m % 1440 / 60); return d ? d + ' д ' + h + ' ч' : h + ' ч ' + (m % 60) + ' мин'; };
+const seIni = n => Array.from(String(n || '?').trim())[0] || '?';
+// аватарка из Telegram: только адреса t.me, при ошибке загрузки остаётся буква
+const seAv = r => `<span class="av">${esc(seIni(r.name))}${r.photo && /^https:\/\/t\.me\//.test(r.photo) ? `<img class="avimg" src="${esc(r.photo)}" alt="" loading="lazy" referrerpolicy="no-referrer">` : ''}</span>`;
+document.addEventListener('error', e => { const t = e.target; if (t && t.classList && t.classList.contains('avimg')) t.remove(); }, true);
+const seChips = r => [r.coins ? `<span class="rc">${r.coins} монет</span>` : ''].concat([1, 2, 3].map(k => r['t' + k] ? `<span class="rc t${k}">Токен ${k} тира${r['t' + k] > 1 ? ' ×' + r['t' + k] : ''}</span>` : '')).join('');
+// общий вид таблицы лидеров: подиум топ-3 и список ниже
+function lbBoard(rows, myPlace, val, prizeTo) {
+  const pod = [1, 0, 2].map(i => {
+    const r = rows[i]; if (!r) return '<div></div>';
+    const n = i + 1;
+    return `<div class="pd p${n}${myPlace === n ? ' me' : ''}">${seAv(r)}<span class="nm">${esc(r.name)}</span><span class="pts">${val(r)}</span><span class="base">${n}</span></div>`;
+  }).join('');
+  const rest = rows.slice(3).map((r, k) => {
+    const n = k + 4;
+    return (prizeTo && n === prizeTo + 1 ? '<li class="cut">ниже без наград</li>' : '')
+      + `<li${myPlace === n ? ' class="me"' : ''}><span class="pos">${n}</span>${seAv(r)}<span class="who">${esc(r.name)}${myPlace === n ? '<span class="you">ты</span>' : ''}</span><span class="sc">${val(r)}</span></li>`;
+  }).join('');
+  return `<div class="pod">${pod}</div>${rest ? `<ol class="lb" start="4">${rest}</ol>` : ''}`;
+}
 function viewSeason() {
   if (SE.status === 'nosync') return '<p class="sub center" style="margin-top:14px">Сезонный рейтинг работает, если открыть игру через Telegram.</p>';
   if (SE.status === 'idle' || (SE.status === 'loading' && !SE.end)) return '<p class="sub center" style="margin-top:14px">Загрузка…</p>';
   if (SE.status === 'error' && !SE.end) return '<p class="sub center" style="margin-top:14px">Не удалось загрузить сезон. Нажми «Обновить».</p>';
-  const left = fmtLeft(SE.end - (Date.now() + SE.skew));
+  const WEEK = 7 * 864e5, now = Date.now() + SE.skew, leftMs = SE.end - now;
+  const frac = Math.max(0, Math.min(1, 1 - leftMs / WEEK));
   const me = SE.me || { pts: 0, wins: 0, place: 0 };
-  const pend = (SE.pending || []);
-  const claim = pend.length ? `<div class="panel" style="margin:10px 0 0;border-color:var(--coin)">
-    <p class="sub" style="margin:0 0 8px"><b style="color:var(--fg)">Награда за прошлый сезон</b>: ${pend.map(p => p.place + ' место (' + p.coins + ' монет' + (p.t1 ? ' + токен 1 тира' + (p.t1 > 1 ? ' ×' + p.t1 : '') : '') + (p.t2 ? ' + токен 2 тира' + (p.t2 > 1 ? ' ×' + p.t2 : '') : '') + (p.t3 ? ' + токен 3 тира' : '') + ')').join(', ')}</p>
+  const rewards = SE.rewards || [];
+  const prizeTo = rewards.reduce((m, r) => Math.max(m, r.to || 0), 0);
+  const pend = SE.pending || [];
+  const claim = pend.length ? `<div class="se-claim">
+    <div class="se-lbl">Награда за прошлый сезон</div>
+    ${pend.map(p => `<div class="cl"><span class="pl">${p.place} место</span>${seChips(p)}</div>`).join('')}
     <button class="btn primary wide" data-act="season-claim">Забрать награду</button></div>` : '';
-  const mine = `<p class="sub">До конца сезона: <b style="color:var(--fg)">${left}</b> · твои очки <b style="color:var(--fg)">${me.pts}</b>${me.place ? ' · место <b style="color:var(--fg)">' + me.place + '</b>' : (me.pts ? ' · нужно ' + SE.minPts + ' очков для места в наградах' : '')}</p>`;
+  const need = !me.place && me.pts && SE.minPts
+    ? `<p class="se-need">До мест с наградами не хватает <b>${Math.max(0, SE.minPts - me.pts)}</b> очков (нужно ${SE.minPts}).</p>` : '';
+  const hero = `<div class="se-hero">
+    <div class="se-top"><div><div class="se-lbl">До конца сезона</div><div class="se-time" id="se-left">${fmtLeft(leftMs)}</div></div><span class="se-tag">Сезон</span></div>
+    <div class="se-bar"><i style="width:${(frac * 100).toFixed(1)}%"></i></div>
+    <div class="se-stats">
+      <div class="se-st"><b>${esc(me.pts || 0)}</b><span>очки</span></div>
+      <div class="se-st"><b>${esc(me.wins || 0)}</b><span>победы</span></div>
+      <div class="se-st${me.place ? ' hot' : ''}"><b>${me.place ? esc(me.place) : '—'}</b><span>место</span></div>
+    </div>${need}</div>`;
   const body = !SE.top.length ? '<p class="sub center" style="margin-top:14px">В этом сезоне пока никого. Выиграй бой и стань первым!</p>'
-    : `<ol class="lb">${SE.top.map((r, i) => `<li><span class="pos">${i + 1}</span><span class="who">${esc(r.name)}</span><span class="sc">${esc(r.pts)} оч.</span></li>`).join('')}</ol>`;
-  const rw = `<ul class="rwt">${(SE.rewards || []).map(r => `<li><span>${r.from === r.to ? r.from + ' место' : r.from + '–' + r.to + ' места'}</span><b>${r.coins} монет${r.t1 ? ' + токен 1 тира' + (r.t1 > 1 ? ' ×' + r.t1 : '') : ''}${r.t2 ? ' + токен 2 тира' : ''}${r.t3 ? ' + токен 3 тира' : ''}</b></li>`).join('')}</ul>`;
-  return `${claim}${mine}${body}<p class="sub" style="margin:14px 0 0"><b style="color:var(--fg)">Награды сезона</b>. Очки дают победы в боях: чем выше стадия, тем больше очков за победу. Сезон идёт неделю, сброс в понедельник в полночь по Москве.</p>${rw}`;
+    : lbBoard(SE.top, me.place, r => esc(r.pts) + ' оч.', prizeTo);
+  const rw = rewards.length ? `<div class="se-h">Награды сезона</div><div class="rwl">${rewards.map(r => {
+    const mine = me.place && me.place >= r.from && me.place <= r.to;
+    const g = r.from === r.to && r.from <= 3 ? ' g' + r.from : '';
+    return `<div class="rwc${mine ? ' mine' : ''}${g}"><span class="rp">${r.from === r.to ? r.from : r.from + '–' + r.to}</span><span class="rcs">${seChips(r)}</span></div>`;
+  }).join('')}</div>` : '';
+  return `${claim}${hero}${body}${rw}<p class="sub" style="margin:12px 0 0">Очки дают победы в боях: чем выше стадия, тем больше очков за победу. Сезон идёт неделю, сброс в понедельник в полночь по Москве.</p>`;
 }
+setInterval(() => { const e = document.getElementById('se-left'); if (e && SE.end) e.textContent = fmtLeft(SE.end - (Date.now() + SE.skew)); }, 30000);
 async function loadTop() {
   try {
     const r = await fetch(SAVE_API + '/top');
@@ -2626,13 +2713,12 @@ function viewTop() {
   if (LB.status === 'loading' && !LB.top.length) body = '<p class="sub center" style="margin-top:14px">Загрузка…</p>';
   else if (LB.status === 'error' && !LB.top.length) body = '<p class="sub center" style="margin-top:14px">Не удалось загрузить рейтинг. Проверь связь и нажми «Обновить».</p>';
   else if (!LB.top.length) body = '<p class="sub center" style="margin-top:14px">Пока никого нет. Стань первым!</p>';
-  else body = `<ol class="lb">${LB.top.map((r, i) =>
-    `<li><span class="pos">${i + 1}</span><span class="who">${esc(r.name)}</span><span class="sc">стадия ${esc(r.best)}</span></li>`).join('')}</ol>`;
+  else body = lbBoard(LB.top, LB.mine ? LB.mine.rank : 0, r => 'стадия ' + esc(r.best), 0);
   const seas = LB.mode === 'season';
   return `
   <section class="panel">
     <h2 class="h">Рейтинг арены</h2>
-    <div class="seg"><button class="btn${seas ? ' primary' : ''}" data-act="lb-mode" data-mode="season">Сезон</button><button class="btn${seas ? '' : ' primary'}" data-act="lb-mode" data-mode="all">Всё время</button></div>
+    <div class="seg"><button class="${seas ? 'on' : ''}" data-act="lb-mode" data-mode="season">Сезон</button><button class="${seas ? '' : 'on'}" data-act="lb-mode" data-mode="all">Всё время</button></div>
     ${seas ? viewSeason() : `<p class="sub">Топ-20 по самой высокой достигнутой стадии.</p>${mine}${note}${body}`}
     <div style="margin-top:12px"><button class="btn wide" data-act="refresh-top">Обновить</button></div>
   </section>
