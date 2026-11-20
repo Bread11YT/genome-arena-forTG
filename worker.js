@@ -211,14 +211,23 @@ function nameOf(params) {
   } catch (e) { return 'Игрок'; }
 }
 
+// аватарка из подписанных данных Telegram; принимаем только адреса t.me, остальное отбрасываем
+function photoOf(params) {
+  try {
+    const u = JSON.parse(params.get('user') || '{}');
+    const p = String(u.photo_url || '');
+    return /^https:\/\/t\.me\/i\/userpic\/[\w\/.\-]{1,200}$/.test(p) ? p : null;
+  } catch (e) { return null; }
+}
+
 // ---------- рейтинг: считается только из проверенных сохранений ----------
 async function rankOf(env, best) {
   const r = await env.DB.prepare('SELECT COUNT(*) AS n FROM players WHERE flagged = 0 AND best > ? AND uid NOT IN (SELECT uid FROM banned)').bind(best).first();
   return 1 + r.n;
 }
 async function topList(env) {
-  const r = await env.DB.prepare('SELECT name, best FROM players WHERE flagged = 0 AND uid NOT IN (SELECT uid FROM banned) ORDER BY best DESC, ts ASC LIMIT 20').all();
-  return { top: (r.results || []).map(x => ({ name: x.name, best: x.best })) };
+  const r = await env.DB.prepare('SELECT name, best, photo FROM players WHERE flagged = 0 AND uid NOT IN (SELECT uid FROM banned) ORDER BY best DESC, ts ASC LIMIT 20').all();
+  return { top: (r.results || []).map(x => ({ name: x.name, best: x.best, photo: x.photo || null })) };
 }
 
 // ---------- напоминание «лаборатория заполнена» (запускается по расписанию Cron) ----------
@@ -629,11 +638,11 @@ async function handleSeason(env, uid, body) {
     }
     return { ok: true, claimed: got, reward: sum };
   }
-  const top = ((await env.DB.prepare('SELECT p.name AS name, s.pts AS pts, s.wins AS wins ' + SEASON_BASE + ' ORDER BY s.pts DESC, s.ts ASC, s.uid ASC LIMIT 20').bind(cur).all()).results || []);
+  const top = ((await env.DB.prepare('SELECT p.name AS name, p.photo AS photo, s.pts AS pts, s.wins AS wins ' + SEASON_BASE + ' ORDER BY s.pts DESC, s.ts ASC, s.uid ASC LIMIT 20').bind(cur).all()).results || []);
   const me = await seasonPlace(env, cur, uid);
   return {
     season: cur, start: seasonStart(cur), end: seasonStart(cur + 1), now,
-    top: top.map(x => ({ name: x.name, pts: x.pts, wins: x.wins })),
+    top: top.map(x => ({ name: x.name, photo: x.photo || null, pts: x.pts, wins: x.wins })),
     me, pending: await seasonPending(env, uid, now),
     rewards: SEASON_REWARDS.map((r, i) => ({ from: i ? SEASON_REWARDS[i - 1][0] + 1 : 1, to: r[0], coins: r[1], t1: r[2], t2: r[3], t3: r[4] })),
     minPts: SEASON_MIN_PTS
@@ -756,8 +765,8 @@ const inner = {
       if (evAcc.rows.length) await evMark(env, uid, evAcc);
       if (seAcc.rows.length) await seasonMark(env, uid, seAcc);
       if (!flagged && !shape) { try { await seasonAdd(env, uid, Pj, N, row ? (now - row.ts) / 1000 : 0, now); } catch (e) { /* таблиц сезона нет */ } }
-      await env.DB.prepare('INSERT INTO players (uid, name, best, flagged, ts) VALUES (?, ?, ?, ?, ?) ON CONFLICT(uid) DO UPDATE SET name = excluded.name, best = MAX(players.best, excluded.best), flagged = MAX(players.flagged, excluded.flagged), ts = excluded.ts')
-      .bind(uid, nameOf(v.params), bestOf(N), flagged, now).run();
+      await env.DB.prepare('INSERT INTO players (uid, name, best, flagged, ts, photo) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(uid) DO UPDATE SET name = excluded.name, photo = COALESCE(excluded.photo, players.photo), best = MAX(players.best, excluded.best), flagged = MAX(players.flagged, excluded.flagged), ts = excluded.ts')
+      .bind(uid, nameOf(v.params), bestOf(N), flagged, now, photoOf(v.params)).run();
       return json({ ok: true, rev: rev + 1 });
     }
     const cr = await env.DB.prepare('SELECT rev, data FROM saves WHERE uid = ?').bind(uid).first();
