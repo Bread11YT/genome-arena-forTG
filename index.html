@@ -439,6 +439,22 @@ p{line-height:1.45}
 .gbar i{display:block;height:100%;background:linear-gradient(90deg,var(--fang),var(--coin));transition:width .4s}
 .sb{background:rgba(255,255,255,.08)}
 </style>
+<style id="selection">
+.selbar{display:grid;gap:6px;margin:0 0 10px}
+.selrow{display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.selrow .sl{font-size:11px;color:var(--muted);min-width:78px}
+.sbtn{display:inline-flex;align-items:center;gap:4px;min-height:32px;padding:0 10px;border-radius:8px;border:1px solid var(--line);background:var(--surface2);color:var(--fg);font-size:12px;font-weight:700;cursor:pointer}
+.sbtn small{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.sbtn.on{border-color:var(--coin);color:var(--coin);box-shadow:0 0 0 1px var(--coin)}
+.fc{margin:0 0 12px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--surface2)}
+.fc-h{display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:6px}
+.fc-h span{color:var(--muted);font-weight:400}
+.fc-row{display:block;padding:3px 0;font-size:12px}
+.fc-nm{display:flex;align-items:center;gap:3px;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.fc-nm .gi{flex:none}
+.fc-nm .gi+.gi{margin-right:3px}
+.fc-new{font-style:normal;font-size:10px;font-weight:700;margin-left:5px;padding:1px 5px;border-radius:6px;border:1px solid var(--coin);color:var(--coin)}
+</style>
 <style id="theme-light" media="not all">
 :root{color-scheme:light;--bg:#f2f4f8;--surface:#ffffff;--surface2:#eff2f6;--line:#dde3ec;--fg:#16202c;--muted:#64748b;--coin:#eba51c;--ink:#1d1405;--pit:#e2e8f1;
 --fang:#e0503e;--steel:#2f7fc4;--spore:#5f9a22;--ether:#7b52cf;--good:#2f9e63;--bad:#d6404d}
@@ -1401,31 +1417,80 @@ function viewBreed() {
     action = `<button class="btn ${confirmId === 'merge' ? 'danger' : 'primary'} wide" data-act="merge-do" ${ready ? '' : 'disabled'}>${confirmId === 'merge' ? 'Точно слить? Уйдёт 1 токен' : 'Слить · 1 токен'}</button>`
       + (own < 1 ? `<p class="sub center" style="margin:8px 0 0">Нет токена «${T.name.toLowerCase()}»: нажми на звезду между родителями и купи.</p>` : '');
     const ok = active().filter(m => mergeOk(m, t)), no = active().filter(m => !mergeOk(m, t));
-    grid = ok.map(m => miniCard(m, { act: 'pick', sel: picks.includes(m.id) })).join('')
-      + no.map(m => miniCard(m, { act: 'merge-low', dim: true, meta: (tierOf(m) === t - 1 || tierOf(m) === t) ? `ур.${m.lvl} из ${T.lvl}` : 'не тот тир' })).join('');
+    grid = parentList(ok).map(m => miniCard(m, { act: 'pick', sel: picks.includes(m.id) })).join('')
+      + parentList(no).map(m => miniCard(m, { act: 'merge-low', dim: true, meta: (tierOf(m) === t - 1 || tierOf(m) === t) ? `ур.${m.lvl} из ${T.lvl}` : 'не тот тир' })).join('');
   } else {
     const can = a && b && S.coins >= breedCost() && !full;
     note = `Потомок берёт по одному гену от каждого родителя. Шанс мутации 8%. Каждое новое поколение даёт +8% к силе (до 5-го). Звезда между родителями включает слияние.`;
     if (full) note = `Мест нет: в коллекции ${COLLECTION_CAP} мутантов. Отпусти кого-нибудь или убери в архив на вкладке «Мутанты».`;
     else if (a && b) note = `Гены для выбора: ${[...new Set([...a.g, ...b.g])].map(geneChip).join(' ')}`;
     action = `<button class="btn primary wide" data-act="breed" ${can ? '' : 'disabled'}>Скрестить · <span class="price">${breedCost()}</span></button>`;
-    grid = active().map(m => miniCard(m, { act: 'pick', sel: picks.includes(m.id) })).join('');
+    grid = parentList(active()).map(m => miniCard(m, { act: 'pick', sel: picks.includes(m.id) })).join('');
   }
+  const barList = t ? active().filter(m => mergeOk(m, t)) : active();
+  const fcast = (a && b && a.id !== b.id) ? forecastHTML(a, b, t) : '';
+  if (!grid) grid = `<p class="sub" style="grid-column:1/-1;margin:0">Нет мутантов с таким геном.</p>`;
   return `
   <section class="panel">
     <h2 class="h">${t ? 'Слияние: ' + tierStar(t, 16) + ' ' + T.name : 'Скрещивание'}</h2>
     <div class="pair">${slot(a)}${mid}${slot(b)}</div>
     <p class="sub">${note}</p>
+    ${fcast}
     ${action}
   </section>
   <section class="panel">
     <h2 class="h">Родители</h2>
+    ${selBarHTML(barList)}
     <div class="gridm">${grid}</div>
   </section>
   ${shopHTML(full)}`;
 }
 
-let starSel = 0, mergePick = [], bingoTier = 0;     // starSel: 0 = обычное скрещивание, 1..4 = слияние в этот тир
+let starSel = 0, mergePick = [], bingoTier = 0;
+/* ---------- УДОБНАЯ СЕЛЕКЦИЯ: сортировка, фильтр по гену, прогноз потомства ---------- */
+let breedSort = 'lvl', breedGene = 'all';
+const BREED_SORTS = [['lvl', 'Уровень'], ['tier', 'Звезда'], ['gen', 'Поколение'], ['sp', 'Вид']];
+const parentList = list => {
+  const L = breedGene === 'all' ? list.slice() : list.filter(m => m.g.includes(breedGene));
+  const by = {
+    lvl: (x, y) => y.lvl - x.lvl || tierOf(y) - tierOf(x),
+    tier: (x, y) => tierOf(y) - tierOf(x) || y.lvl - x.lvl,
+    gen: (x, y) => (y.gen || 0) - (x.gen || 0) || y.lvl - x.lvl,
+    sp: (x, y) => speciesName(x.g[0], x.g[1]).localeCompare(speciesName(y.g[0], y.g[1]), 'ru') || y.lvl - x.lvl
+  }[breedSort] || ((x, y) => y.lvl - x.lvl);
+  return L.sort(by);
+};
+/* точные шансы видов потомка: те же правила, что в breedGenes (по гену от родителя, порядок 50/50, мутация 8%) */
+function breedForecast(a, b) {
+  const MUT = 0.08, out = {};
+  const add = (x, y, p) => { const k = x + '-' + y; out[k] = (out[k] || 0) + p; };
+  for (const x of a.g) for (const y of b.g) {
+    const p = 0.25;
+    add(x, y, p * (1 - MUT) / 2); add(y, x, p * (1 - MUT) / 2);
+    for (const r of GENE_IDS) {
+      const q = p * MUT / 2 / GENE_IDS.length;
+      add(r, y, q / 2); add(y, r, q / 2);   // мутировал первый ген
+      add(x, r, q / 2); add(r, x, q / 2);   // мутировал второй ген
+    }
+  }
+  return Object.entries(out).map(([k, p]) => ({ g: k.split('-'), p })).sort((u, v) => v.p - u.p);
+}
+function forecastHTML(a, b, t) {
+  const list = breedForecast(a, b), seen = seenOf(t) || {};
+  const shown = list.filter(o => o.p >= 0.02), rest = list.filter(o => o.p < 0.02);
+  const rows = shown.map(o => {
+    const isNew = !seen[speciesKey(o.g[0], o.g[1])];
+    return `<div class="fc-row"><span class="fc-nm">${geneIcon(o.g[0], 14)}${geneIcon(o.g[1], 14)} ${speciesName(o.g[0], o.g[1])}${isNew ? '<em class="fc-new">новый</em>' : ''}</span></div>`;
+  }).join('');
+  const gen = Math.min(5, Math.max(a.gen || 0, b.gen || 0) + 1);
+  return `<div class="fc"><div class="fc-h">Кто может родиться <span>пок. ${gen}</span></div>${rows}</div>`;
+}
+function selBarHTML(list) {
+  const cnt = g => list.filter(m => m.g.includes(g)).length;
+  const sorts = BREED_SORTS.map(([k, n]) => `<button class="sbtn${breedSort === k ? ' on' : ''}" data-act="breed-sort" data-id="${k}">${n}</button>`).join('');
+  const genes = `<button class="sbtn${breedGene === 'all' ? ' on' : ''}" data-act="breed-gene" data-id="all">Все</button>` + GENE_IDS.map(g => `<button class="sbtn${breedGene === g ? ' on' : ''}" data-act="breed-gene" data-id="${g}" aria-label="${GENES[g].name}" title="${GENES[g].name}">${geneIcon(g, 14)}<small>${cnt(g)}</small></button>`).join('');
+  return `<div class="selbar"><div class="selrow"><span class="sl">Сортировка</span>${sorts}</div><div class="selrow"><span class="sl">Ген</span>${genes}</div></div>`;
+}     // starSel: 0 = обычное скрещивание, 1..4 = слияние в этот тир
 const mergeOk = (m, t) => !!m && !m.arc && (tierOf(m) === t - 1 || tierOf(m) === t) && m.lvl >= TIERS[t].lvl;   // родители: тот же тир или на 1 ниже
 const viewLab = () => viewBreed();
 const starOutline = (size = 22) => `<svg class="gi" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 2.4l2.9 6.1 6.7.9-4.9 4.6 1.2 6.6L12 17.4l-5.9 3.2 1.2-6.6L2.4 9.4l6.7-.9z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
@@ -2383,6 +2448,8 @@ function act_(a, d) {
       picks = picks.filter(p => p !== id);
       S.coins += refund; sfx('coin'); save(); closeModal(); render(); break;
     }
+    case 'breed-sort': breedSort = id; render(); break;
+    case 'breed-gene': breedGene = id; render(); break;
     case 'pick': {
       if (starSel && !picks.includes(id) && !mergeOk(byId(id), starSel)) break;
       const i = picks.indexOf(id);
