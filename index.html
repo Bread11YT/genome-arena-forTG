@@ -559,6 +559,9 @@ const TIER_BONUS = 0.25;        // каждый тир: +25% к здоровью
 const MERGE_START_LVL = 1;      // с какого уровня начинает мутант после слияния
 const tierOf = m => (m && m.tier) || 0;
 const BREED_COST = 30, SAMPLE_COST = 40, HYBRID_COST = 90, RELEASE_REFUND = 8, COLLECTION_CAP = 12;
+/* цена продажи («Отпустить»): база 8 + 2 за каждый уровень выше первого, умноженная на множитель звезды */
+const RELEASE_PER_LVL = 2, RELEASE_TIER_MULT = [1, 1.5, 2.5, 4, 6];   // обычный, бронза, серебро, золото, платина
+const releasePrice = m => Math.round((RELEASE_REFUND + RELEASE_PER_LVL * Math.max(0, (m.lvl || 1) - 1)) * (RELEASE_TIER_MULT[tierOf(m)] || 1));
 const xpNeed = l => 18 + 8 * l;
 /* ---------- ТРЕНИРОВОЧНЫЙ ПОЛИГОН ---------- */
 const TRAIN_XP_BASE = 10, TRAIN_XP_PCT = 0.11, TRAIN_LOSE_SHARE = 0.3;   // победа: 10 + 11% от опыта до следующего уровня (по среднему уровню команды); поражение: 30% от награды за победу
@@ -1692,7 +1695,7 @@ function detailHTML(m) {
     <div class="row">
       ${m.arc ? `<button class="btn grow primary" data-act="unarchive" data-id="${m.id}" ${activeCount() >= COLLECTION_CAP ? 'disabled' : ''}>${activeCount() >= COLLECTION_CAP ? 'Нет места в коллекции' : 'Достать из архива'}</button>`
         : `<button class="btn grow ${inTeam ? '' : 'primary'}" data-act="team" data-id="${m.id}">${inTeam ? 'Убрать из команды' : 'В команду'}</button>`}
-      <button class="btn ${confirmId === m.id ? 'danger' : ''}" data-act="release" data-id="${m.id}">${confirmId === m.id ? `Отпустить за +${RELEASE_REFUND}?` : 'Отпустить'}</button>
+      <button class="btn ${confirmId === m.id ? 'danger' : ''}" data-act="release" data-id="${m.id}">${confirmId === m.id ? `Отпустить за +${releasePrice(m)}?` : 'Отпустить'}</button>
     </div>
     ${m.arc ? '' : `<div style="margin-top:8px"><button class="btn wide" data-act="archive" data-id="${m.id}" ${inTeam || S.mutants.filter(x => x.arc).length >= ARCHIVE_CAP ? 'disabled' : ''}>${inTeam ? 'В архив (сначала убери из команды)' : 'В архив'}</button></div>`}
     <div style="margin-top:8px"><button class="btn wide" data-act="close">Закрыть</button></div>`;
@@ -2373,11 +2376,12 @@ function act_(a, d) {
       const rm = byId(id); if (!rm) break;
       if (!rm.arc && activeCount() <= 1) break;
       if (confirmId !== id) { confirmId = id; openModal(detailHTML(byId(id))); break; }
+      const refund = releasePrice(rm);
       S.mutants = S.mutants.filter(m => m.id !== id);
       S.team = S.team.filter(t => t !== id);
       if (!S.team.length) S.team = active().slice(0, 3).map(m => m.id);
       picks = picks.filter(p => p !== id);
-      S.coins += RELEASE_REFUND; sfx('coin'); save(); closeModal(); render(); break;
+      S.coins += refund; sfx('coin'); save(); closeModal(); render(); break;
     }
     case 'pick': {
       if (starSel && !picks.includes(id) && !mergeOk(byId(id), starSel)) break;
