@@ -17,6 +17,7 @@
 ![JavaScript](https://raw.githubusercontent.com/Bread11YT/badges/main/badges/with-icon/languages/javascript.svg)
 ![Cloudflare](https://raw.githubusercontent.com/Bread11YT/badges/main/badges/with-icon/tools/cloudflare.svg)
 ![Telegram](https://raw.githubusercontent.com/Bread11YT/badges/main/badges/with-icon/mobile/telegram.svg)
+![Strategy](https://raw.githubusercontent.com/Bread11YT/badges/main/badges/with-icon/genres/strategy.svg)
 
 </div>
 
