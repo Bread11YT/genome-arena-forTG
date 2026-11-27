@@ -11,6 +11,13 @@
 ![Single file](https://img.shields.io/badge/один-index.html-f4b942?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers_+_D1-F38020?style=for-the-badge&logo=cloudflare&logoColor=white)
 
+Теги:
+
+![HTML5](https://raw.githubusercontent.com/Bread11YT/badges/main/badges/with-icon/languages/html5.svg)
+![JavaScript](https://raw.githubusercontent.com/Bread11YT/badges/main/badges/with-icon/languages/javascript.svg)
+![Cloudflare](https://raw.githubusercontent.com/Bread11YT/badges/main/badges/with-icon/tools/cloudflare.svg)
+![Telegram](https://raw.githubusercontent.com/Bread11YT/badges/main/badges/with-icon/mobile/telegram.svg)
+
 </div>
 
 ---
